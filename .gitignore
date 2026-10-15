@@ -23,8 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Capacitor native builds
-android/
+# Android build artifacts
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
 ios/
 .tmp/
 

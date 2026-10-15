@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Max Gain Smart Calculator</string>
+    <string name="title_activity_main">Max Gain Smart Calculator</string>
+    <string name="package_name">com.adk113.maxgainsmartcalculator</string>
+    <string name="custom_url_scheme">com.adk113.maxgainsmartcalculator</string>
+</resources>

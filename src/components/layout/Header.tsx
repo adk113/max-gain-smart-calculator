@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CurrencySelector } from '../controls/CurrencySelector';
-import { Share2, Download, Check, Shield } from 'lucide-react';
+import { Share2, Download, Check, Shield, Smartphone } from 'lucide-react';
 
 interface HeaderProps {
   currencyCode: string;
@@ -81,12 +81,24 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onExportCsv}
-            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm font-semibold transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-slate-200 text-xs sm:text-sm font-semibold transition-all active:scale-95"
             title="Download full 360-month dataset to CSV"
           >
             <Download className="w-4 h-4 text-emerald-400" />
-            <span className="hidden md:inline">Download CSV</span>
+            <span className="hidden md:inline">CSV</span>
           </button>
+
+          {/* Get App / APK link */}
+          <a
+            href="/share"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 hover:from-emerald-500/30 hover:to-indigo-500/30 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm font-semibold transition-all active:scale-95"
+            title="Open Mobile App & APK Download Hub"
+          >
+            <Smartphone className="w-4 h-4 text-emerald-400" />
+            <span className="hidden lg:inline">Get App / APK</span>
+          </a>
         </div>
       </div>
     </header>
