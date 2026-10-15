@@ -50,6 +50,39 @@ export function App() {
 
   const [activeMobileTab, setActiveMobileTab] = useState<ActiveTab>('inputs');
 
+  // Theme state: dark | light (persisted in localStorage)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('maxgain_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {
+      // ignore
+    }
+    return 'dark';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('maxgain_theme', theme);
+    } catch {
+      // ignore
+    }
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      root.classList.add('light');
+      root.setAttribute('data-theme', 'light');
+    } else {
+      root.classList.remove('light');
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // DOM section references for smooth scrolling
   const inputsRef = useRef<HTMLDivElement>(null);
   const kpisRef = useRef<HTMLDivElement>(null);
@@ -170,13 +203,19 @@ export function App() {
   const isIndian = currencyConfig.isIndianNotation ?? false;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
-      {/* Header with Currency & Sharing */}
+    <div
+      className={`min-h-screen ${
+        theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'
+      } flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950 transition-colors duration-200`}
+    >
+      {/* Header with Currency, Theme Toggle & Sharing */}
       <Header
         currencyCode={currencyCode}
         onSelectCurrency={setCurrencyCode}
         onCopyShareLink={() => copyShareableLink(currentInputs)}
         onExportCsv={() => exportSimulationToCsv(rows, currentInputs, summary)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main Container */}
