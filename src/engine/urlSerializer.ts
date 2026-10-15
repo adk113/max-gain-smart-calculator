@@ -17,6 +17,7 @@ export function serializeSimulationState(inputs: SimulationInputs): string {
       fa: inputs.fallbackYoYAdjustment,
       bs: inputs.baselineMonthlySurplus,
       cs: inputs.customSurplusLedger,
+      sc: inputs.salaryCycle,
     };
 
     const json = JSON.stringify(compactPayload);
@@ -51,6 +52,7 @@ export function deserializeSimulationState(encoded: string): Partial<SimulationI
       fallbackYoYAdjustment: data.fa,
       baselineMonthlySurplus: data.bs,
       customSurplusLedger: data.cs || {},
+      salaryCycle: data.sc,
     };
   } catch (err) {
     console.error('Failed to deserialize simulation state', err);

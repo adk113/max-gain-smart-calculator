@@ -26,6 +26,14 @@ export interface LockInPhase {
   ratePercent: number;
 }
 
+export interface SalaryCycleConfig {
+  enabled: boolean;
+  monthlySalary: number;
+  parkingDays: number; // e.g. 10 days parked at 100%
+  withdrawalPercent: number; // e.g. 60% withdrawn on day (parkingDays + 1)
+  accumulateRetainedSavings: boolean; // false = static monthly float, true = adds retained savings month-over-month
+}
+
 export interface SimulationInputs {
   principal: number;
   tenureYears: number;
@@ -37,6 +45,7 @@ export interface SimulationInputs {
   fallbackYoYAdjustment: number;
   baselineMonthlySurplus: number;
   customSurplusLedger: Record<number, number>;
+  salaryCycle: SalaryCycleConfig;
 }
 
 export interface MonthlyAmortizationRow {
@@ -48,6 +57,7 @@ export interface MonthlyAmortizationRow {
   monthlyRate: number;
   openingPrincipal: number;
   parkedSurplus: number;
+  salaryFloatOffset: number;
   effectivePrincipal: number;
   accruedInterest: number;
   standardAccruedInterest: number;
@@ -67,7 +77,7 @@ export interface MonthlyAmortizationRow {
 
 export interface FinancialMilestoneInsight {
   id: string;
-  type: 'TENURE_CHANGE' | 'RATE_SHIFT' | 'EMI_CHANGE' | 'SURPLUS_IMPACT' | 'CLOSURE_EVENT';
+  type: 'TENURE_CHANGE' | 'RATE_SHIFT' | 'EMI_CHANGE' | 'SURPLUS_IMPACT' | 'SALARY_CYCLE' | 'CLOSURE_EVENT';
   month: number;
   dateStr: string;
   title: string;
@@ -92,5 +102,7 @@ export interface SimulationSummary {
   monthsRemainderSaved: number;
   initialBenchmarkEmi: number;
   interestReductionPercent: number;
+  effectiveMonthlySalaryFloat: number;
+  monthlyInterestSavedFromFloat: number;
   milestones: FinancialMilestoneInsight[];
 }

@@ -22,6 +22,13 @@ An advanced, responsive, mobile-first financial simulation platform modeling ove
 - **Fix EMI Mode (Variable Tenure)**: Benchmark EMI remains constant; parked surplus and prepayments accelerate principal payoff, cutting years off the loan.
 - **Fix Tenure Mode (Variable EMI)**: Total tenure remains locked; surplus reduces required monthly active EMI payments, delivering immediate cashflow relief.
 
+### 3. Smart Salary Float & Parking Cycle Simulator
+- **Zero-Extra-Capital Arbitrage**: Models the practical reality of receiving salary on the 1st, parking it in the OD account for $D$ days, and then withdrawing $W\%$ on Day $D+1$ for household expenses, credit card bills, and rent.
+- **Daily Reducing Balance Math**: Implements the banking time-weighted daily average balance formula:
+  $$\bar{S}_{\text{daily}} = \frac{(S \times D) + \left(S \times (1 - \frac{W}{100}) \times (30 - D)\right)}{30}$$
+- **Visual 30-Day Flow Bar**: Color-coded split bar comparing Phase 1 (100% Salary Parked) vs. Phase 2 (Retained Float post-expense withdrawal).
+- **Instant Timing Metric**: Computes pure timing interest saved per month without needing any outside capital.
+
 ### 3. Multi-Tier Interest Rate Lock-In Ledger
 - Chain multiple fixed-rate periods (e.g., **Phase 1**: 3 Years @ 9.50%, **Phase 2**: 2 Years @ 8.75%).
 - Remaining timeline up to Year 30 (Month 360) seamlessly falls back to a customizable Year-on-Year (YoY) variable benchmark rate ledger.

@@ -211,7 +211,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
 
                   {/* Interactive Surplus Text Input Cell (defaults to 0) */}
                   <td className="py-2.5 px-3 text-center">
-                    <div className="relative inline-flex items-center">
+                    <div className="relative inline-flex flex-col items-center">
                       <input
                         type="number"
                         step={1000}
@@ -228,6 +228,11 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                         } disabled:opacity-30 disabled:cursor-not-allowed`}
                         title="Enter parked surplus or prepayment for this month (default 0)"
                       />
+                      {r.salaryFloatOffset > 0 && !isClosed && (
+                        <span className="text-[10px] text-emerald-400 font-mono mt-0.5" title="Automatic time-weighted salary parking float">
+                          +{formatCurrency(r.salaryFloatOffset, currencyCode, true)} float
+                        </span>
+                      )}
                     </div>
                   </td>
 

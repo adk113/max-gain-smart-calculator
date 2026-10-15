@@ -8,10 +8,11 @@ import { LockInPhaseManager } from './components/controls/LockInPhaseManager';
 import { KPICards } from './components/dashboard/KPICards';
 import { AmortizationChart } from './components/dashboard/AmortizationChart';
 import { SurplusStrategyCard } from './components/dashboard/SurplusStrategyCard';
+import { SalaryCycleSimulator } from './components/dashboard/SalaryCycleSimulator';
 import { InsightsTimeline } from './components/dashboard/InsightsTimeline';
 import { LedgerTable } from './components/ledger/LedgerTable';
 
-import type { SimulationInputs, LockInPhase, LoanMode } from './types/loan';
+import type { SimulationInputs, LockInPhase, LoanMode, SalaryCycleConfig } from './types/loan';
 import { runSimulation } from './engine/amortizationEngine';
 import { copyShareableLink, deserializeSimulationState } from './engine/urlSerializer';
 import { exportSimulationToCsv } from './engine/csvExporter';
@@ -38,6 +39,15 @@ export function App() {
   const [baselineSurplus, setBaselineSurplus] = useState<number>(0);
   const [customSurplusLedger, setCustomSurplusLedger] = useState<Record<number, number>>({});
 
+  // Salary parking cycle configuration (e.g., salary on 1st, parked 10 days, 60% withdrawn for bills)
+  const [salaryCycle, setSalaryCycle] = useState<SalaryCycleConfig>({
+    enabled: false,
+    monthlySalary: 150000,
+    parkingDays: 10,
+    withdrawalPercent: 60,
+    accumulateRetainedSavings: false,
+  });
+
   const [activeMobileTab, setActiveMobileTab] = useState<ActiveTab>('inputs');
 
   // DOM section references for smooth scrolling
@@ -62,6 +72,7 @@ export function App() {
         if (restored.fallbackYoYAdjustment !== undefined) setFallbackYoY(restored.fallbackYoYAdjustment);
         if (restored.baselineMonthlySurplus !== undefined) setBaselineSurplus(restored.baselineMonthlySurplus);
         if (restored.customSurplusLedger !== undefined) setCustomSurplusLedger(restored.customSurplusLedger);
+        if (restored.salaryCycle !== undefined) setSalaryCycle(restored.salaryCycle);
       }
     }
   }, []);
@@ -78,6 +89,7 @@ export function App() {
       fallbackYoYAdjustment: fallbackYoY,
       baselineMonthlySurplus: baselineSurplus,
       customSurplusLedger,
+      salaryCycle,
     }),
     [
       principal,
@@ -90,6 +102,7 @@ export function App() {
       fallbackYoY,
       baselineSurplus,
       customSurplusLedger,
+      salaryCycle,
     ]
   );
 
@@ -115,6 +128,7 @@ export function App() {
   const handleResetAllSurplus = () => {
     setBaselineSurplus(0);
     setCustomSurplusLedger({});
+    setSalaryCycle((prev) => ({ ...prev, enabled: false }));
   };
 
   // Load sample Excel scenario (52 Lakhs @ 9.5%, Months 1-12 have 25,000)
@@ -130,6 +144,13 @@ export function App() {
     setFallbackRate(9.5);
     setFallbackYoY(0);
     setBaselineSurplus(0);
+    setSalaryCycle({
+      enabled: false,
+      monthlySalary: 150000,
+      parkingDays: 10,
+      withdrawalPercent: 60,
+      accumulateRetainedSavings: false,
+    });
 
     const sampleCustom: Record<number, number> = {};
     for (let m = 1; m <= 12; m++) {
@@ -171,8 +192,8 @@ export function App() {
                 Overdraft Prepayment & Multi-Tier Amortization Simulator
               </h2>
               <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                Model 30-year home loan overdraft dynamics with zero lock-in. Park emergency cash,
-                slash accrued interest, and liquidate your debt years ahead of schedule.
+                Model 30-year home loan overdraft dynamics with zero lock-in. Park emergency cash or your
+                monthly salary float, slash accrued interest, and liquidate debt years ahead of schedule.
               </p>
             </div>
 
@@ -270,6 +291,15 @@ export function App() {
               onLoadExcelScenario={handleLoadExcelScenario}
             />
           </div>
+
+          {/* Smart Salary Float & Parking Cycle Simulator */}
+          <SalaryCycleSimulator
+            config={salaryCycle}
+            currencyCode={currencyCode}
+            effectiveMonthlyFloat={summary.effectiveMonthlySalaryFloat}
+            monthlyInterestSaved={summary.monthlyInterestSavedFromFloat}
+            onChangeConfig={setSalaryCycle}
+          />
 
           {/* Multi-Tier Interest Rate Lock-In Ledger */}
           <LockInPhaseManager
