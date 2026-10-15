@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share Max Gain Smart Loan Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #090D16;
+      color: #E2E8F0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+    }
+    .header { text-align: center; margin-bottom: 32px; max-width: 650px; }
+    .badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10B981;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    h1 { font-size: 28px; font-weight: 800; color: #FFFFFF; margin-bottom: 8px; }
+    p.subtitle { font-size: 14px; color: #94A3B8; line-height: 1.5; }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      max-width: 840px;
+      width: 100%;
+    }
+    .card {
+      background: #0F172A;
+      border: 1px solid #1E293B;
+      border-radius: 20px;
+      padding: 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    .card-tag {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .card-tag.web { background: rgba(56, 189, 248, 0.15); color: #38BDF8; }
+    .card-tag.apk { background: rgba(16, 185, 129, 0.15); color: #10B981; }
+    .card-title { font-size: 20px; font-weight: 700; color: #FFFFFF; margin-bottom: 6px; }
+    .card-desc { font-size: 12px; color: #94A3B8; margin-bottom: 20px; line-height: 1.4; }
+    .qr-wrapper {
+      background: #FFFFFF;
+      padding: 14px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    }
+    .qr-wrapper svg { width: 180px; height: 180px; display: block; }
+    .action-btn {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+      display: inline-block;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .btn-web { background: #38BDF8; color: #090D16; }
+    .btn-apk { background: #10B981; color: #090D16; }
+    .action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .guide-box {
+      margin-top: 14px;
+      background: #1E293B;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: #94A3B8;
+      text-align: left;
+      line-height: 1.5;
+      width: 100%;
+    }
+    .guide-box strong { color: #E2E8F0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="badge">VERSION 1.0.0 RELEASE</div>
+    <h1>Max Gain Smart Loan Simulator</h1>
+    <p class="subtitle">Home loan overdraft advantage simulator, multi-tier lock-in rate schedules, smart salary parking cycles, and 360-month interactive what-if ledger.</p>
+  </div>
+
+  <div class="cards-grid">
+    <!-- Web / iOS Card -->
+    <div class="card">
+      <div class="card-tag web">IOS, SAFARI & WEB</div>
+      <h2 class="card-title">Instant Web App</h2>
+      <p class="card-desc">No installation needed. Opens directly in Safari on iPhone, iPad, or desktop browsers.</p>
+      <div class="qr-wrapper">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" fill="#090D16" rx="10"/>
+          <path d="M50 18L78 30V50C78 66 65 79 50 84C35 79 22 66 22 50V30L50 18Z" fill="#10B981" opacity="0.9"/>
+          <path d="M43 49L48 54L58 42" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <a class="action-btn btn-web" href="https://max-gain-smart-calculator.onrender.com" target="_blank">Open Live Web App</a>
+      <div class="guide-box">
+        <strong>📱 iPhone Tip:</strong> Tap <em>Share</em> in Safari and tap <em>"Add to Home Screen"</em> to run full-screen as a standalone native app!
+      </div>
+    </div>
+
+    <!-- Android APK Card -->
+    <div class="card">
+      <div class="card-tag apk">ANDROID NATIVE (v1.0.0)</div>
+      <h2 class="card-title">Download Android APK</h2>
+      <p class="card-desc">Standalone Android application bundle for offline installation and native performance.</p>
+      <div class="qr-wrapper">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" fill="#090D16" rx="10"/>
+          <path d="M30 45V70H70V45H30Z" fill="#10B981"/>
+          <circle cx="40" cy="55" r="3" fill="#090D16"/>
+          <circle cx="60" cy="55" r="3" fill="#090D16"/>
+          <path d="M35 38L28 28M65 38L72 28" stroke="#10B981" stroke-width="4" stroke-linecap="round"/>
+          <path d="M35 38C35 29.7 41.7 23 50 23C58.3 23 65 29.7 65 38H35Z" fill="#10B981"/>
+        </svg>
+      </div>
+      <a class="action-btn btn-apk" href="/downloads/max-gain-smart-calculator.apk" id="apkDownloadLink" download>Download APK File</a>
+      <div class="guide-box">
+        <strong>⚡ Android Tip:</strong> Tap to download directly onto your device. When prompted, select <em>"Install anyway"</em> for the build.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

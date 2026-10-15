@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Max Gain Smart Calculator",
+    "slug": "max-gain-smart-calculator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.adk113.maxgainsmartcalculator"
+    },
+    "android": {
+      "package": "com.adk113.maxgainsmartcalculator",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#090D16",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6bd7704d-69b9-4ea0-b83e-c014977fa5e0"
+      }
+    }
+  }
+}
