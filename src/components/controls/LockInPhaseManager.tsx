@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { LockInPhase } from '../../types/loan';
 import { Layers, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { FriendlyNumberInput } from './FriendlyNumberInput';
 
 interface LockInPhaseManagerProps {
   phases: LockInPhase[];
@@ -47,8 +48,17 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
     );
   };
 
-  // Calculate start and end year offsets for each phase
-  let currentYearTracker = 0;
+  // Pre-calculate start and end year offsets for each phase cleanly
+  const phaseYearRanges = useMemo(() => {
+    const ranges: { start: number; end: number }[] = [];
+    let cur = 0;
+    for (let i = 0; i < phases.length; i++) {
+      const dur = phases[i].durationYears;
+      ranges.push({ start: cur, end: cur + dur });
+      cur += dur;
+    }
+    return ranges;
+  }, [phases]);
 
   return (
     <div className="glass-card rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 space-y-4">
@@ -64,7 +74,7 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
           type="button"
           onClick={handleAddPhase}
           disabled={totalPhaseYears >= maxYears}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Lock-In Phase</span>
@@ -109,9 +119,10 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
       {/* Chained Fixed Rate Phase Rows */}
       <div className="space-y-2.5">
         {phases.map((phase, idx) => {
-          const startYear = currentYearTracker;
-          const endYear = currentYearTracker + phase.durationYears;
-          currentYearTracker = endYear;
+          const { start: startYear, end: endYear } = phaseYearRanges[idx] || {
+            start: 0,
+            end: phase.durationYears,
+          };
 
           return (
             <div
@@ -139,42 +150,39 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
                 {/* Duration */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-slate-400">Duration:</span>
-                  <div className="relative">
-                    <input
-                      type="number"
+                  <div className="w-16">
+                    <FriendlyNumberInput
+                      value={phase.durationYears}
                       min={1}
                       max={maxYears}
-                      value={phase.durationYears}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         handleUpdatePhase(phase.id, {
-                          durationYears: Math.max(1, parseInt(e.target.value) || 1),
+                          durationYears: Math.max(1, Math.round(val)),
                         })
                       }
-                      className="w-16 py-1 px-2 text-right font-mono text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full py-1 px-1.5 text-right font-mono text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
-                    <span className="text-[10px] text-slate-400 ml-1">Yrs</span>
                   </div>
+                  <span className="text-[10px] text-slate-400">Yrs</span>
                 </div>
 
                 {/* Rate */}
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-slate-400">Rate:</span>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step={0.05}
-                      min={1}
-                      max={25}
+                  <div className="w-20">
+                    <FriendlyNumberInput
                       value={phase.ratePercent}
-                      onChange={(e) =>
+                      min={0.1}
+                      max={25}
+                      onChange={(val) =>
                         handleUpdatePhase(phase.id, {
-                          ratePercent: Math.max(0.1, parseFloat(e.target.value) || 0),
+                          ratePercent: Math.max(0.1, val),
                         })
                       }
-                      className="w-20 py-1 px-2 text-right font-mono text-xs font-bold text-emerald-400 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="w-full py-1 px-1.5 text-right font-mono text-xs font-bold text-emerald-400 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
-                    <span className="text-[10px] text-slate-400 ml-1">%</span>
                   </div>
+                  <span className="text-[10px] text-slate-400">%</span>
                 </div>
 
                 {/* Delete button */}
@@ -182,7 +190,7 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRemovePhase(phase.id)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                     title="Remove this lock-in phase"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -211,15 +219,15 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
           <div className="flex items-center justify-between gap-2 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
             <span className="text-xs text-slate-300">Base Variable Rate:</span>
             <div className="flex items-center gap-1">
-              <input
-                type="number"
-                step={0.05}
-                min={1}
-                max={25}
-                value={fallbackRate}
-                onChange={(e) => onChangeFallbackRate(parseFloat(e.target.value) || 8.5)}
-                className="w-18 py-1 px-2 text-right font-mono text-xs font-bold text-indigo-300 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <div className="w-20">
+                <FriendlyNumberInput
+                  value={fallbackRate}
+                  min={0.1}
+                  max={25}
+                  onChange={(val) => onChangeFallbackRate(val)}
+                  className="w-full py-1 px-1.5 text-right font-mono text-xs font-bold text-indigo-300 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
               <span className="text-xs text-slate-400">%</span>
             </div>
           </div>
@@ -228,15 +236,16 @@ export const LockInPhaseManager: React.FC<LockInPhaseManagerProps> = ({
           <div className="flex items-center justify-between gap-2 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
             <span className="text-xs text-slate-300">Year-on-Year Drift:</span>
             <div className="flex items-center gap-1">
-              <input
-                type="number"
-                step={0.05}
-                min={-3}
-                max={3}
-                value={fallbackYoY}
-                onChange={(e) => onChangeFallbackYoY(parseFloat(e.target.value) || 0)}
-                className="w-18 py-1 px-2 text-right font-mono text-xs font-bold text-indigo-300 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <div className="w-20">
+                <FriendlyNumberInput
+                  value={fallbackYoY}
+                  min={-3}
+                  max={3}
+                  allowNegative={true}
+                  onChange={(val) => onChangeFallbackYoY(val)}
+                  className="w-full py-1 px-1.5 text-right font-mono text-xs font-bold text-indigo-300 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
               <span className="text-xs text-slate-400">%/yr</span>
             </div>
           </div>

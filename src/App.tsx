@@ -271,7 +271,7 @@ export function App() {
 
         {/* SECTION 1: Dual Input Controls & Configuration */}
         <div ref={inputsRef} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
             {/* 1. Loan Amount */}
             <DualSliderInput
               label="Loan Amount Principal"
@@ -320,47 +320,47 @@ export function App() {
               helperText="Full 360-month amortization schedule framework."
             />
 
-            {/* 3. Date Picker & Mode Switch */}
-            <div className="glass-card rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 flex flex-col justify-between space-y-3">
+            {/* 3. Date Picker & Scheduled Closure Card */}
+            <div className="glass-card rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-800 flex flex-col justify-between space-y-3 h-full">
               <DatePickerPopup
                 label="Loan Start Date"
                 selectedDate={startDate}
                 onChange={setStartDate}
               />
 
-              <div className="pt-1">
-                <span className="block text-[10px] text-slate-400 font-mono mb-1">
-                  Scheduled Closure (without prepayments):
+              <div className="pt-1 border-t border-slate-800/80">
+                <span className="block text-[10px] text-slate-400 font-mono mb-0.5">
+                  Scheduled Standard Closure:
                 </span>
                 <span className="text-xs font-bold text-slate-200">
-                  {summary.originalClosureDate} ({tenureYears * 12} Months)
+                  {summary.originalClosureDate} ({tenureYears * 12} Mos)
                 </span>
               </div>
             </div>
+
+            {/* 4. Tenure vs. EMI Strategy Mode Card */}
+            <ModeToggle mode={mode} onChange={setMode} />
           </div>
 
-          {/* Mode Switch & Parked Surplus Strategy Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ModeToggle mode={mode} onChange={setMode} />
-            <SurplusStrategyCard
-              baselineSurplus={baselineSurplus}
-              monthlySurplusStartDate={monthlySurplusStartDate}
-              oneTimeTransactions={oneTimeTransactions}
-              currencyCode={currencyCode}
-              hasCustomOverrides={
-                Object.keys(customSurplusLedger).length > 0 ||
-                baselineSurplus > 0 ||
-                oneTimeTransactions.length > 0
-              }
-              loanStartDate={startDate}
-              onChangeBaseline={setBaselineSurplus}
-              onChangeMonthlySurplusStartDate={setMonthlySurplusStartDate}
-              onAddTransaction={handleAddTransaction}
-              onRemoveTransaction={handleRemoveTransaction}
-              onResetAll={handleResetAllSurplus}
-              onLoadExcelScenario={handleLoadExcelScenario}
-            />
-          </div>
+          {/* Parked Surplus Strategy Card (Full Width) */}
+          <SurplusStrategyCard
+            baselineSurplus={baselineSurplus}
+            monthlySurplusStartDate={monthlySurplusStartDate}
+            oneTimeTransactions={oneTimeTransactions}
+            currencyCode={currencyCode}
+            hasCustomOverrides={
+              Object.keys(customSurplusLedger).length > 0 ||
+              baselineSurplus > 0 ||
+              oneTimeTransactions.length > 0
+            }
+            loanStartDate={startDate}
+            onChangeBaseline={setBaselineSurplus}
+            onChangeMonthlySurplusStartDate={setMonthlySurplusStartDate}
+            onAddTransaction={handleAddTransaction}
+            onRemoveTransaction={handleRemoveTransaction}
+            onResetAll={handleResetAllSurplus}
+            onLoadExcelScenario={handleLoadExcelScenario}
+          />
 
           {/* Smart Salary Float & Parking Cycle Simulator */}
           <SalaryCycleSimulator

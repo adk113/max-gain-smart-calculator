@@ -2,6 +2,7 @@ import React from 'react';
 import type { SalaryCycleConfig } from '../../types/loan';
 import { formatCurrency } from '../../utils/formatters';
 import { Calendar, RefreshCw, Sparkles } from 'lucide-react';
+import { FriendlyNumberInput } from '../controls/FriendlyNumberInput';
 
 interface SalaryCycleSimulatorProps {
   config: SalaryCycleConfig;
@@ -140,17 +141,15 @@ export const SalaryCycleSimulator: React.FC<SalaryCycleSimulatorProps> = ({
             <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
               Monthly Salary
             </label>
-            <input
-              type="number"
-              step={5000}
-              min={10000}
-              max={5000000}
-              value={salary}
-              onChange={(e) =>
-                onChangeConfig({ ...config, monthlySalary: Math.max(0, parseFloat(e.target.value) || 0) })
-              }
-              className="w-24 py-1 px-2 text-right font-mono text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
+            <div className="w-28">
+              <FriendlyNumberInput
+                value={salary}
+                min={0}
+                max={5000000}
+                onChange={(val) => onChangeConfig({ ...config, monthlySalary: val })}
+                className="w-full py-1 px-2 text-right font-mono text-xs font-bold text-white bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
           </div>
 
           <input

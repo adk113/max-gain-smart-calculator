@@ -12,6 +12,7 @@ import {
   ArrowUpRight,
   Filter,
 } from 'lucide-react';
+import { FriendlyNumberInput } from '../controls/FriendlyNumberInput';
 
 interface LedgerTableProps {
   rows: MonthlyAmortizationRow[];
@@ -263,24 +264,22 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
                   {/* Interactive Surplus & One-Time Transactions Cell */}
                   <td className="py-2.5 px-3 text-center">
                     <div className="relative inline-flex flex-col items-center max-w-[200px]">
-                      <input
-                        type="number"
-                        step={1000}
-                        min={-50000000}
-                        value={r.prepaymentOrSurplus || 0}
-                        disabled={isClosed}
-                        onChange={(e) =>
-                          onUpdateMonthSurplus(r.month, parseFloat(e.target.value) || 0)
-                        }
-                        className={`w-32 py-1 px-2 text-right font-mono text-xs font-bold rounded-lg border transition-all focus:outline-none focus:ring-1 ${
-                          r.prepaymentOrSurplus > 0
-                            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 focus:ring-emerald-400'
-                            : r.prepaymentOrSurplus < 0
-                            ? 'bg-rose-500/10 border-rose-500/40 text-rose-300 focus:ring-rose-400'
-                            : 'bg-slate-900/80 border-slate-700 text-slate-400 focus:ring-slate-500'
-                        } disabled:opacity-30 disabled:cursor-not-allowed`}
-                        title="Enter net parked surplus (+) or withdrawal (-) for this month (default 0)"
-                      />
+                      <div className="w-32">
+                        <FriendlyNumberInput
+                          value={r.prepaymentOrSurplus || 0}
+                          onChange={(val) => onUpdateMonthSurplus(r.month, val)}
+                          allowNegative={true}
+                          disabled={isClosed}
+                          placeholder="0"
+                          className={`w-full py-1 px-2 text-right font-mono text-xs font-bold rounded-lg border transition-all focus:outline-none focus:ring-1 ${
+                            r.prepaymentOrSurplus > 0
+                              ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 focus:ring-emerald-400'
+                              : r.prepaymentOrSurplus < 0
+                              ? 'bg-rose-500/10 border-rose-500/40 text-rose-300 focus:ring-rose-400'
+                              : 'bg-slate-900/80 border-slate-700 text-slate-400 focus:ring-slate-500'
+                          } disabled:opacity-30 disabled:cursor-not-allowed`}
+                        />
+                      </div>
 
                       {/* Badges for One-Time Transactions on this exact month */}
                       {r.transactions && r.transactions.length > 0 && !isClosed && (

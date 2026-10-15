@@ -47,11 +47,33 @@ export const DualSliderInput: React.FC<DualSliderInputProps> = ({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    setTextVal(raw);
-    const parsed = parseFloat(raw.replace(/,/g, ''));
-    if (!isNaN(parsed)) {
-      onChange(Math.max(0, parsed));
+    if (raw === '') {
+      setTextVal('');
+      onChange(min);
+      return;
     }
+    // Filter numeric characters
+    let cleaned = raw.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) {
+      cleaned = parts[0] + '.' + parts.slice(1).join('');
+    }
+    if (cleaned.length > 1 && cleaned.startsWith('0') && !cleaned.startsWith('0.')) {
+      cleaned = cleaned.replace(/^0+/, '');
+      if (cleaned === '') cleaned = '0';
+    }
+    setTextVal(cleaned);
+    const parsed = parseFloat(cleaned);
+    if (!isNaN(parsed)) {
+      onChange(parsed);
+    }
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(true);
+    setTimeout(() => {
+      e.target.select();
+    }, 10);
   };
 
   const handleBlur = () => {
@@ -86,14 +108,13 @@ export const DualSliderInput: React.FC<DualSliderInputProps> = ({
             </span>
           )}
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
             value={textVal}
             onChange={handleTextChange}
-            onFocus={() => setIsFocused(true)}
+            onFocus={handleFocus}
             onBlur={handleBlur}
-            step={step}
-            min={min}
-            max={max}
             className={`w-32 sm:w-36 py-1.5 text-right font-mono text-sm sm:text-base font-bold text-white bg-slate-900/90 border rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
               prefix ? 'pl-7 pr-3' : 'px-3'
             } ${unit ? 'pr-8' : ''} border-slate-700/80 shadow-inner`}
