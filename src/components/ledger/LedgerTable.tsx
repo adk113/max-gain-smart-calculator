@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { MonthlyAmortizationRow, SimulationSummary } from '../../types/loan';
 import { formatCurrency, formatPercentage } from '../../utils/formatters';
 import {
@@ -11,6 +11,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Filter,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { FriendlyNumberInput } from '../controls/FriendlyNumberInput';
 
@@ -31,6 +32,41 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [onlyActiveActivity, setOnlyActiveActivity] = useState<boolean>(false);
+  const [horizontalScrollProgress, setHorizontalScrollProgress] = useState<number>(0);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleTableScroll = useCallback(() => {
+    if (tableContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tableContainerRef.current;
+      const maxScroll = scrollWidth - clientWidth;
+      if (maxScroll > 0) {
+        setHorizontalScrollProgress((scrollLeft / maxScroll) * 100);
+      }
+    }
+  }, []);
+
+  const handleSlideTable = (percent: number) => {
+    if (tableContainerRef.current) {
+      const { scrollWidth, clientWidth } = tableContainerRef.current;
+      const maxScroll = scrollWidth - clientWidth;
+      tableContainerRef.current.scrollLeft = (percent / 100) * maxScroll;
+      setHorizontalScrollProgress(percent);
+    }
+  };
+
+  const handleScrollTableBy = (deltaX: number) => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollBy({ left: deltaX, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    const el = tableContainerRef.current;
+    if (el) {
+      el.addEventListener('scroll', handleTableScroll, { passive: true });
+      return () => el.removeEventListener('scroll', handleTableScroll);
+    }
+  }, [handleTableScroll]);
 
   // Quick jump helper
   const handleJumpToMonth = (monthNumber: number) => {
@@ -204,8 +240,52 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
         </div>
       </div>
 
+      {/* Horizontal Slide Bar for Table (Safe column sliding on Mobile & Laptop) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
+        <div className="flex items-center gap-1.5 font-medium text-[11px] text-slate-400">
+          <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Table Slide Bar (Slide without touching cells):</span>
+        </div>
+
+        <div className="flex items-center gap-2 flex-1 max-w-md">
+          <button
+            type="button"
+            onClick={() => handleScrollTableBy(-180)}
+            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono border border-slate-700 cursor-pointer"
+            title="Scroll Left"
+          >
+            ◀ Left
+          </button>
+
+          {/* Horizontal Scrubber Track */}
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(horizontalScrollProgress)}
+            onChange={(e) => handleSlideTable(parseFloat(e.target.value))}
+            className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-400 touch-pan-x"
+            style={{ touchAction: 'pan-x' }}
+            title="Slide horizontally across table columns"
+          />
+
+          <button
+            type="button"
+            onClick={() => handleScrollTableBy(180)}
+            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono border border-slate-700 cursor-pointer"
+            title="Scroll Right"
+          >
+            Right ▶
+          </button>
+        </div>
+      </div>
+
       {/* Ledger Table Container */}
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
+      <div
+        ref={tableContainerRef}
+        className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40"
+      >
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-900/90 text-slate-400 font-mono text-[11px] border-b border-slate-800 uppercase tracking-wider sticky top-0 z-10">

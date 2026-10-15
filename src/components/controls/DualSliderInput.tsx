@@ -14,6 +14,7 @@ interface DualSliderInputProps {
   presets?: { label: string; value: number }[];
   onChange: (val: number) => void;
   helperText?: string;
+  isLocked?: boolean;
 }
 
 export const DualSliderInput: React.FC<DualSliderInputProps> = ({
@@ -29,6 +30,7 @@ export const DualSliderInput: React.FC<DualSliderInputProps> = ({
   presets = [],
   onChange,
   helperText,
+  isLocked = false,
 }) => {
   const [textVal, setTextVal] = useState<string>(value.toString());
   const [isFocused, setIsFocused] = useState(false);
@@ -96,9 +98,16 @@ export const DualSliderInput: React.FC<DualSliderInputProps> = ({
   return (
     <div className="glass-card rounded-2xl p-4 sm:p-5 transition-all hover:border-slate-600/60 shadow-lg">
       <div className="flex items-center justify-between gap-3 mb-3">
-        <label className="text-xs sm:text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          {label}
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="text-xs sm:text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            {label}
+          </label>
+          {isLocked && (
+            <span className="text-[10px] font-mono text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+              🔒 Locked
+            </span>
+          )}
+        </div>
         
         {/* Linked Manual Text Input Box */}
         <div className="relative flex items-center">
@@ -135,10 +144,14 @@ export const DualSliderInput: React.FC<DualSliderInputProps> = ({
           max={max}
           step={step}
           value={value}
+          disabled={isLocked}
           onChange={handleSliderChange}
-          className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none"
+          className={`w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none touch-pan-y ${
+            isLocked ? 'pointer-events-none opacity-50 cursor-not-allowed' : ''
+          }`}
           style={{
             background: `linear-gradient(to right, #10b981 ${progressPercent}%, #1e293b ${progressPercent}%)`,
+            touchAction: 'pan-y',
           }}
         />
         <div className="flex justify-between items-center text-[10px] sm:text-xs text-slate-400 font-mono mt-1.5">

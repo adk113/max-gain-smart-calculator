@@ -10,6 +10,7 @@ interface SalaryCycleSimulatorProps {
   effectiveMonthlyFloat: number;
   monthlyInterestSaved: number;
   onChangeConfig: (newConfig: SalaryCycleConfig) => void;
+  isLocked?: boolean;
 }
 
 export const SalaryCycleSimulator: React.FC<SalaryCycleSimulatorProps> = ({
@@ -18,6 +19,7 @@ export const SalaryCycleSimulator: React.FC<SalaryCycleSimulatorProps> = ({
   effectiveMonthlyFloat,
   monthlyInterestSaved,
   onChangeConfig,
+  isLocked = false,
 }) => {
   const isIndian = currencyCode === 'INR';
   const salary = config.monthlySalary;
@@ -158,10 +160,14 @@ export const SalaryCycleSimulator: React.FC<SalaryCycleSimulatorProps> = ({
             max={isIndian ? 500000 : 25000}
             step={isIndian ? 5000 : 500}
             value={salary}
+            disabled={isLocked}
             onChange={(e) =>
               onChangeConfig({ ...config, monthlySalary: parseFloat(e.target.value) || 0 })
             }
-            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+            className={`w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 touch-pan-y ${
+              isLocked ? 'pointer-events-none opacity-50 cursor-not-allowed' : ''
+            }`}
+            style={{ touchAction: 'pan-y' }}
           />
 
           <div className="flex flex-wrap gap-1 pt-1">
@@ -199,10 +205,14 @@ export const SalaryCycleSimulator: React.FC<SalaryCycleSimulatorProps> = ({
             max={29}
             step={1}
             value={days}
+            disabled={isLocked}
             onChange={(e) =>
               onChangeConfig({ ...config, parkingDays: parseInt(e.target.value) || 10 })
             }
-            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+            className={`w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 touch-pan-y ${
+              isLocked ? 'pointer-events-none opacity-50 cursor-not-allowed' : ''
+            }`}
+            style={{ touchAction: 'pan-y' }}
           />
 
           <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
@@ -246,10 +256,14 @@ export const SalaryCycleSimulator: React.FC<SalaryCycleSimulatorProps> = ({
             max={100}
             step={5}
             value={withdrawalPct}
+            disabled={isLocked}
             onChange={(e) =>
               onChangeConfig({ ...config, withdrawalPercent: parseInt(e.target.value) || 60 })
             }
-            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+            className={`w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400 touch-pan-y ${
+              isLocked ? 'pointer-events-none opacity-50 cursor-not-allowed' : ''
+            }`}
+            style={{ touchAction: 'pan-y' }}
           />
 
           <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">

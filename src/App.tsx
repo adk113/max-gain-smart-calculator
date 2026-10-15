@@ -15,10 +15,15 @@ import { LedgerTable } from './components/ledger/LedgerTable';
 import type { SimulationInputs, LockInPhase, LoanMode, SalaryCycleConfig, OneTimeTransaction } from './types/loan';
 import { runSimulation } from './engine/amortizationEngine';
 import { copyShareableLink, deserializeSimulationState } from './engine/urlSerializer';
-import { exportSimulationToCsv } from './engine/csvExporter';
 import { getCurrencyConfig } from './utils/formatters';
+import { ScreenScrollSlideBar } from './components/layout/ScreenScrollSlideBar';
+import { ExportCsvModal } from './components/controls/ExportCsvModal';
 
 export function App() {
+  // Safe-scroll slider lock and mobile export modal state
+  const [slidersLocked, setSlidersLocked] = useState<boolean>(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+
   // Default values adhering strictly to requirements:
   // - Default currency: INR
   // - Prepayments default to Zero (0)
@@ -234,7 +239,7 @@ export function App() {
         currencyCode={currencyCode}
         onSelectCurrency={setCurrencyCode}
         onCopyShareLink={() => copyShareableLink(currentInputs)}
-        onExportCsv={() => exportSimulationToCsv(rows, currentInputs, summary)}
+        onExportCsv={() => setIsExportModalOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -257,11 +262,38 @@ export function App() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Safe Scroll Mode / Lock Sliders Toggle */}
+              <button
+                type="button"
+                onClick={() => setSlidersLocked(!slidersLocked)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer ${
+                  slidersLocked
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 hover:bg-rose-500/30 font-bold'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title={
+                  slidersLocked
+                    ? 'Sliders Locked (Touch-safe scrolling enabled). Tap to unlock.'
+                    : 'Lock sliders to safely scroll on touch screens without accidentally modifying values.'
+                }
+              >
+                {slidersLocked ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
+                    <span>🔒 Sliders Locked (Safe Scroll)</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🔓 Lock Sliders (Safe Scroll)</span>
+                  </>
+                )}
+              </button>
+
               <button
                 type="button"
                 onClick={handleLoadExcelScenario}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-all active:scale-95 shadow-sm"
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
               >
                 📊 Load Sample Excel (₹52L)
               </button>
@@ -282,6 +314,7 @@ export function App() {
               prefix={currencyConfig.symbol}
               isCurrency={true}
               isIndianNotation={isIndian}
+              isLocked={slidersLocked}
               presets={
                 isIndian
                   ? [
@@ -309,6 +342,7 @@ export function App() {
               max={30}
               step={1}
               unit="Yrs"
+              isLocked={slidersLocked}
               presets={[
                 { label: '10 Yrs', value: 10 },
                 { label: '15 Yrs', value: 15 },
@@ -369,6 +403,7 @@ export function App() {
             effectiveMonthlyFloat={summary.effectiveMonthlySalaryFloat}
             monthlyInterestSaved={summary.monthlyInterestSavedFromFloat}
             onChangeConfig={setSalaryCycle}
+            isLocked={slidersLocked}
           />
 
           {/* Multi-Tier Interest Rate Lock-In Ledger */}
@@ -421,6 +456,21 @@ export function App() {
 
       {/* Mobile Bottom Tab Navigation */}
       <MobileTabBar activeTab={activeMobileTab} onSelectTab={handleMobileTabSelect} />
+
+      {/* Screen Vertical Slide Bar (Safe scrolling without touching values) */}
+      <ScreenScrollSlideBar
+        slidersLocked={slidersLocked}
+        onToggleSlidersLock={() => setSlidersLocked(!slidersLocked)}
+      />
+
+      {/* Mobile-Friendly CSV Export Modal */}
+      <ExportCsvModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        rows={rows}
+        inputs={currentInputs}
+        summary={summary}
+      />
     </div>
   );
 }

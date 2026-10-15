@@ -100,11 +100,11 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onExportCsv}
-            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-slate-200 text-xs sm:text-sm font-semibold transition-all active:scale-95"
+            className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-slate-200 text-xs sm:text-sm font-semibold transition-all active:scale-95 cursor-pointer"
             title="Download full 360-month dataset to CSV"
           >
             <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
-            <span className="hidden md:inline">CSV</span>
+            <span className="text-xs font-bold">CSV</span>
           </button>
 
           {/* Get App / APK link */}

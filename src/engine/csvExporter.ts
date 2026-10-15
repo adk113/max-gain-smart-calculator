@@ -1,10 +1,16 @@
 import type { MonthlyAmortizationRow, SimulationInputs, SimulationSummary } from '../types/loan';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
-export function exportSimulationToCsv(
+/**
+ * Generate CSV string from simulation data
+ */
+export function generateSimulationCsv(
   rows: MonthlyAmortizationRow[],
   inputs: SimulationInputs,
   summary: SimulationSummary
-): void {
+): string {
   const headers = [
     'Month',
     'Year',
@@ -82,12 +88,92 @@ export function exportSimulationToCsv(
     csvRows.push(row.join(','));
   }
 
-  const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.join('\n'));
-  const link = document.createElement('a');
-  link.setAttribute('href', csvContent);
+  return csvRows.join('\n');
+}
+
+/**
+ * Universal CSV Exporter supporting Mobile (iOS Safari, Android Chrome, Capacitor) & Desktop.
+ * 1. If in Capacitor Native App: uses native Filesystem & Share sheets.
+ * 2. If in Mobile Safari/Chrome: uses Web Share API (navigator.share) with File object (allows 'Save to Files', AirDrop, Drive, etc.).
+ * 3. Fallback: Blob URL download with cleanup.
+ */
+export async function exportSimulationToCsv(
+  rows: MonthlyAmortizationRow[],
+  inputs: SimulationInputs,
+  summary: SimulationSummary
+): Promise<{ success: boolean; method: string; filename: string }> {
+  const csvContent = generateSimulationCsv(rows, inputs, summary);
   const timestamp = new Date().toISOString().slice(0, 10);
-  link.setAttribute('download', `maxgain_simulation_${inputs.currencyCode}_${timestamp}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const filename = `maxgain_simulation_${inputs.currencyCode}_${timestamp}.csv`;
+
+  // 1. Native Capacitor Environment (Android APK / iOS App)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const savedFile = await Filesystem.writeFile({
+        path: filename,
+        data: csvContent,
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8,
+      });
+
+      await Share.share({
+        title: 'MaxGain Home Loan Simulation CSV',
+        text: `MaxGain Simulation Report (${inputs.currencyCode})`,
+        url: savedFile.uri,
+        dialogTitle: 'Save or Share Simulation CSV',
+      });
+
+      return { success: true, method: 'capacitor-native', filename };
+    } catch (err) {
+      console.warn('Capacitor native share failed, falling back to Web Share / Blob download', err);
+    }
+  }
+
+  // 2. Mobile Web Share API (iOS Safari 15+, Android Chrome)
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+  const isMobile =
+    typeof navigator !== 'undefined' &&
+    /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  if (isMobile && typeof navigator.canShare === 'function' && typeof File !== 'undefined') {
+    try {
+      const file = new File([blob], filename, { type: 'text/csv' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: 'MaxGain Home Loan Simulation CSV',
+          text: `Max Gain Simulation Schedule (${inputs.currencyCode})`,
+          files: [file],
+        });
+        return { success: true, method: 'web-share', filename };
+      }
+    } catch (err: unknown) {
+      // AbortError is thrown when user cancels the share sheet
+      if (err instanceof Error && err.name === 'AbortError') {
+        return { success: true, method: 'share-dismissed', filename };
+      }
+      console.warn('Web Share failed, proceeding to Blob download', err);
+    }
+  }
+
+  // 3. Direct Blob URL download (Desktop & standard web browsers)
+  try {
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', filename);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    }, 2000);
+
+    return { success: true, method: 'blob-download', filename };
+  } catch (err) {
+    console.error('Blob download failed', err);
+    return { success: false, method: 'failed', filename };
+  }
 }
