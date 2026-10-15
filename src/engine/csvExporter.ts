@@ -1,5 +1,14 @@
 import type { MonthlyAmortizationRow, SimulationInputs, SimulationSummary } from '../types/loan';
 
+declare global {
+  interface Window {
+    AndroidNativeBridge?: {
+      isNative?: () => boolean;
+      saveAndShareCsv?: (filename: string, content: string) => boolean;
+    };
+  }
+}
+
 /**
  * Generate CSV string from simulation data
  */
@@ -88,12 +97,62 @@ export function generateSimulationCsv(
   return csvRows.join('\n');
 }
 
+export interface CsvPackage {
+  filename: string;
+  csvContent: string;
+  dataUri: string;
+  blobUrl: string;
+  isNativeAndroid: boolean;
+  canWebShare: boolean;
+}
+
 /**
- * Universal CSV Exporter supporting Mobile (iOS Safari, Android Chrome, WebView) & Desktop.
- * 1. Mobile Web Share API (navigator.share with File): Supported in modern mobile browsers
- *    (allows native iOS "Save to Files", AirDrop, Android "Save to Drive", WhatsApp, etc.).
- * 2. Blob URL download (URL.createObjectURL): Standard desktop & Android Chrome file downloads.
- * 3. Fallback: Data URI download.
+ * Pre-generate full CSV package with ready data URI and blob URL for direct tapping
+ */
+export function prepareCsvPackage(
+  rows: MonthlyAmortizationRow[],
+  inputs: SimulationInputs,
+  summary: SimulationSummary
+): CsvPackage {
+  const csvContent = generateSimulationCsv(rows, inputs, summary);
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const filename = `maxgain_simulation_${inputs.currencyCode}_${timestamp}.csv`;
+
+  const isNativeAndroid =
+    typeof window !== 'undefined' &&
+    Boolean(window.AndroidNativeBridge && typeof window.AndroidNativeBridge.saveAndShareCsv === 'function');
+
+  let blobUrl = '';
+  try {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    blobUrl = URL.createObjectURL(blob);
+  } catch {
+    // safe fallback
+  }
+
+  const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+
+  const canWebShare =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function';
+
+  return {
+    filename,
+    csvContent,
+    dataUri,
+    blobUrl,
+    isNativeAndroid,
+    canWebShare,
+  };
+}
+
+/**
+ * Universal CSV Exporter supporting:
+ * 1. Android APK native bridge (Direct save to Downloads + Android Share Sheet)
+ * 2. Web Share API with File (iOS Safari "Save to Files", Android Chrome Share Sheet)
+ * 3. Direct Blob URL download (Desktop / Laptop browsers)
+ * 4. Data URI fallback
  */
 export async function exportSimulationToCsv(
   rows: MonthlyAmortizationRow[],
@@ -104,39 +163,71 @@ export async function exportSimulationToCsv(
   const timestamp = new Date().toISOString().slice(0, 10);
   const filename = `maxgain_simulation_${inputs.currencyCode}_${timestamp}.csv`;
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  // 1. Android Native Bridge (Inside the Android APK)
+  if (
+    typeof window !== 'undefined' &&
+    window.AndroidNativeBridge &&
+    typeof window.AndroidNativeBridge.saveAndShareCsv === 'function'
+  ) {
+    try {
+      const ok = window.AndroidNativeBridge.saveAndShareCsv(filename, csvContent);
+      if (ok) {
+        return { success: true, method: 'android-native', filename };
+      }
+    } catch (err) {
+      console.warn('Android native bridge call failed, falling back', err);
+    }
+  }
 
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const isMobile =
     typeof navigator !== 'undefined' &&
     /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  // 1. Mobile Web Share API with File (Native mobile sharing)
+  // 2. Web Share API with File (Mobile Safari, Mobile Chrome)
   if (isMobile && typeof navigator.canShare === 'function' && typeof File !== 'undefined') {
+    let fileToShare: File | null = null;
     try {
-      const file = new File([blob], filename, { type: 'text/csv' });
-      if (navigator.canShare({ files: [file] })) {
+      // Try text/csv first (standard for iOS Safari)
+      const csvFile = new File([blob], filename, { type: 'text/csv' });
+      if (navigator.canShare({ files: [csvFile] })) {
+        fileToShare = csvFile;
+      } else {
+        // Try text/plain (required by Android Chromium's strict share whitelist)
+        const textFile = new File([blob], filename, { type: 'text/plain' });
+        if (navigator.canShare({ files: [textFile] })) {
+          fileToShare = textFile;
+        }
+      }
+    } catch (e) {
+      console.warn('canShare check encountered an issue', e);
+    }
+
+    if (fileToShare) {
+      try {
         await navigator.share({
           title: 'MaxGain Home Loan Simulation CSV',
           text: `Max Gain Simulation Schedule (${inputs.currencyCode})`,
-          files: [file],
+          files: [fileToShare],
         });
         return { success: true, method: 'web-share', filename };
+      } catch (err: unknown) {
+        // AbortError is thrown when user closes/dismisses the share sheet
+        if (err instanceof Error && err.name === 'AbortError') {
+          return { success: true, method: 'share-dismissed', filename };
+        }
+        console.warn('Web Share failed, proceeding to Blob download', err);
       }
-    } catch (err: unknown) {
-      // AbortError is thrown when user dismisses the share sheet
-      if (err instanceof Error && err.name === 'AbortError') {
-        return { success: true, method: 'share-dismissed', filename };
-      }
-      console.warn('Web Share failed, proceeding to Blob download', err);
     }
   }
 
-  // 2. Direct Blob URL download (Desktop & standard web browsers)
+  // 3. Direct Blob URL download (Desktop & standard web browsers)
   try {
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = blobUrl;
     link.setAttribute('download', filename);
+    link.target = '_blank';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
@@ -144,19 +235,20 @@ export async function exportSimulationToCsv(
     setTimeout(() => {
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
-    }, 2000);
+    }, 2500);
 
     return { success: true, method: 'blob-download', filename };
   } catch (err) {
     console.warn('Blob download failed, trying data URI fallback', err);
   }
 
-  // 3. Fallback Data URI
+  // 4. Fallback Data URI
   try {
     const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', filename);
+    link.target = '_blank';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
