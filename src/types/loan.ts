@@ -34,6 +34,16 @@ export interface SalaryCycleConfig {
   accumulateRetainedSavings: boolean; // false = static monthly float, true = adds retained savings month-over-month
 }
 
+export type OneTimeTransactionType = 'DEPOSIT' | 'WITHDRAWAL';
+
+export interface OneTimeTransaction {
+  id: string;
+  type: OneTimeTransactionType;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  label?: string; // e.g. "Bonus", "Emergency Fund", "Tax Refund"
+}
+
 export interface SimulationInputs {
   principal: number;
   tenureYears: number;
@@ -44,6 +54,8 @@ export interface SimulationInputs {
   fallbackRatePercent: number;
   fallbackYoYAdjustment: number;
   baselineMonthlySurplus: number;
+  monthlySurplusStartDate?: string; // Optional start date for recurring monthly surplus
+  oneTimeTransactions?: OneTimeTransaction[]; // Lump-sum deposits and withdrawals
   customSurplusLedger: Record<number, number>;
   salaryCycle: SalaryCycleConfig;
 }
@@ -58,9 +70,14 @@ export interface MonthlyAmortizationRow {
   openingPrincipal: number;
   parkedSurplus: number;
   salaryFloatOffset: number;
+  oneTimeDeposit: number;
+  oneTimeWithdrawal: number;
+  netOneTimeSurplus: number;
+  monthlySurplus: number;
   effectivePrincipal: number;
   accruedInterest: number;
   standardAccruedInterest: number;
+  monthlyInterestSaved: number;
   activeEmi: number;
   standardEmi: number;
   principalPaid: number;
@@ -73,6 +90,7 @@ export interface MonthlyAmortizationRow {
   cumulativeStandardTotalPaid: number;
   isClosureMonth: boolean;
   isClosed: boolean;
+  transactions?: OneTimeTransaction[];
 }
 
 export interface FinancialMilestoneInsight {
@@ -104,5 +122,8 @@ export interface SimulationSummary {
   interestReductionPercent: number;
   effectiveMonthlySalaryFloat: number;
   monthlyInterestSavedFromFloat: number;
+  totalOneTimeDeposited: number;
+  totalOneTimeWithdrawn: number;
+  netOneTimeSurplus: number;
   milestones: FinancialMilestoneInsight[];
 }

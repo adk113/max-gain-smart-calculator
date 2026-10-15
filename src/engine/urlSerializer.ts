@@ -16,6 +16,8 @@ export function serializeSimulationState(inputs: SimulationInputs): string {
       fr: inputs.fallbackRatePercent,
       fa: inputs.fallbackYoYAdjustment,
       bs: inputs.baselineMonthlySurplus,
+      msd: inputs.monthlySurplusStartDate,
+      ot: inputs.oneTimeTransactions,
       cs: inputs.customSurplusLedger,
       sc: inputs.salaryCycle,
     };
@@ -51,6 +53,8 @@ export function deserializeSimulationState(encoded: string): Partial<SimulationI
       fallbackRatePercent: data.fr,
       fallbackYoYAdjustment: data.fa,
       baselineMonthlySurplus: data.bs,
+      monthlySurplusStartDate: data.msd,
+      oneTimeTransactions: Array.isArray(data.ot) ? data.ot : [],
       customSurplusLedger: data.cs || {},
       salaryCycle: data.sc,
     };

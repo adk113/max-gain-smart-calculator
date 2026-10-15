@@ -12,7 +12,7 @@ import { SalaryCycleSimulator } from './components/dashboard/SalaryCycleSimulato
 import { InsightsTimeline } from './components/dashboard/InsightsTimeline';
 import { LedgerTable } from './components/ledger/LedgerTable';
 
-import type { SimulationInputs, LockInPhase, LoanMode, SalaryCycleConfig } from './types/loan';
+import type { SimulationInputs, LockInPhase, LoanMode, SalaryCycleConfig, OneTimeTransaction } from './types/loan';
 import { runSimulation } from './engine/amortizationEngine';
 import { copyShareableLink, deserializeSimulationState } from './engine/urlSerializer';
 import { exportSimulationToCsv } from './engine/csvExporter';
@@ -37,6 +37,8 @@ export function App() {
   const [fallbackRate, setFallbackRate] = useState<number>(8.5);
   const [fallbackYoY, setFallbackYoY] = useState<number>(0.0);
   const [baselineSurplus, setBaselineSurplus] = useState<number>(0);
+  const [monthlySurplusStartDate, setMonthlySurplusStartDate] = useState<string>('');
+  const [oneTimeTransactions, setOneTimeTransactions] = useState<OneTimeTransaction[]>([]);
   const [customSurplusLedger, setCustomSurplusLedger] = useState<Record<number, number>>({});
 
   // Salary parking cycle configuration (e.g., salary on 1st, parked 10 days, 60% withdrawn for bills)
@@ -104,6 +106,8 @@ export function App() {
         if (restored.fallbackRatePercent !== undefined) setFallbackRate(restored.fallbackRatePercent);
         if (restored.fallbackYoYAdjustment !== undefined) setFallbackYoY(restored.fallbackYoYAdjustment);
         if (restored.baselineMonthlySurplus !== undefined) setBaselineSurplus(restored.baselineMonthlySurplus);
+        if (restored.monthlySurplusStartDate !== undefined) setMonthlySurplusStartDate(restored.monthlySurplusStartDate);
+        if (restored.oneTimeTransactions !== undefined) setOneTimeTransactions(restored.oneTimeTransactions);
         if (restored.customSurplusLedger !== undefined) setCustomSurplusLedger(restored.customSurplusLedger);
         if (restored.salaryCycle !== undefined) setSalaryCycle(restored.salaryCycle);
       }
@@ -121,6 +125,8 @@ export function App() {
       fallbackRatePercent: fallbackRate,
       fallbackYoYAdjustment: fallbackYoY,
       baselineMonthlySurplus: baselineSurplus,
+      monthlySurplusStartDate,
+      oneTimeTransactions,
       customSurplusLedger,
       salaryCycle,
     }),
@@ -134,6 +140,8 @@ export function App() {
       fallbackRate,
       fallbackYoY,
       baselineSurplus,
+      monthlySurplusStartDate,
+      oneTimeTransactions,
       customSurplusLedger,
       salaryCycle,
     ]
@@ -143,6 +151,15 @@ export function App() {
   const { rows, summary } = useMemo(() => runSimulation(currentInputs), [currentInputs]);
 
   const currencyConfig = getCurrencyConfig(currencyCode);
+
+  // Handlers for One-Time Transactions (Deposits / Withdrawals)
+  const handleAddTransaction = (tx: OneTimeTransaction) => {
+    setOneTimeTransactions((prev) => [...prev, tx]);
+  };
+
+  const handleRemoveTransaction = (id: string) => {
+    setOneTimeTransactions((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Handler to update a single month's surplus in ledger
   const handleUpdateMonthSurplus = (month: number, value: number) => {
@@ -160,6 +177,8 @@ export function App() {
   // Reset all custom overrides to 0
   const handleResetAllSurplus = () => {
     setBaselineSurplus(0);
+    setMonthlySurplusStartDate('');
+    setOneTimeTransactions([]);
     setCustomSurplusLedger({});
     setSalaryCycle((prev) => ({ ...prev, enabled: false }));
   };
@@ -177,6 +196,8 @@ export function App() {
     setFallbackRate(9.5);
     setFallbackYoY(0);
     setBaselineSurplus(0);
+    setMonthlySurplusStartDate('');
+    setOneTimeTransactions([]);
     setSalaryCycle({
       enabled: false,
       monthlySalary: 150000,
@@ -323,9 +344,19 @@ export function App() {
             <ModeToggle mode={mode} onChange={setMode} />
             <SurplusStrategyCard
               baselineSurplus={baselineSurplus}
+              monthlySurplusStartDate={monthlySurplusStartDate}
+              oneTimeTransactions={oneTimeTransactions}
               currencyCode={currencyCode}
-              hasCustomOverrides={Object.keys(customSurplusLedger).length > 0}
+              hasCustomOverrides={
+                Object.keys(customSurplusLedger).length > 0 ||
+                baselineSurplus > 0 ||
+                oneTimeTransactions.length > 0
+              }
+              loanStartDate={startDate}
               onChangeBaseline={setBaselineSurplus}
+              onChangeMonthlySurplusStartDate={setMonthlySurplusStartDate}
+              onAddTransaction={handleAddTransaction}
+              onRemoveTransaction={handleRemoveTransaction}
               onResetAll={handleResetAllSurplus}
               onLoadExcelScenario={handleLoadExcelScenario}
             />

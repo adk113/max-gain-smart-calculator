@@ -11,10 +11,15 @@ export function exportSimulationToCsv(
     'Date',
     'Interest Rate (%)',
     'Opening Principal',
-    'Parked Surplus',
+    'Monthly Surplus Base',
+    'One-Time Deposit',
+    'One-Time Withdrawal',
+    'Net Prepayment/Surplus',
+    'Parked Surplus (Offset)',
     'Effective Principal (Interest Base)',
     'Accrued Interest',
     'Standard Loan Accrued Interest',
+    'Monthly Interest Saved',
     'Active EMI Paid',
     'Standard Loan EMI',
     'Principal Paid',
@@ -35,6 +40,7 @@ export function exportSimulationToCsv(
   csvRows.push(`# Tenure Years,${inputs.tenureYears},Mode,${inputs.mode}`);
   csvRows.push(`# Initial Benchmark EMI,${summary.initialBenchmarkEmi}`);
   csvRows.push(`# Lifetime Interest Saved,${summary.lifetimeInterestSaved}`);
+  csvRows.push(`# Total One-Time Deposited,${summary.totalOneTimeDeposited},Total One-Time Withdrawn,${summary.totalOneTimeWithdrawn}`);
   csvRows.push(`# Loan Closed in Month,${summary.actualClosureMonth} of ${summary.originalTenureMonths} (Saved ${summary.monthsSaved} months)`);
   csvRows.push(``);
   csvRows.push(headers.join(','));
@@ -52,10 +58,15 @@ export function exportSimulationToCsv(
       `"${r.dateStr}"`,
       r.annualRate.toFixed(2),
       r.openingPrincipal,
+      r.monthlySurplus,
+      r.oneTimeDeposit,
+      r.oneTimeWithdrawal,
+      r.prepaymentOrSurplus,
       r.parkedSurplus,
       r.effectivePrincipal,
       r.accruedInterest,
       r.standardAccruedInterest,
+      r.monthlyInterestSaved,
       r.activeEmi,
       r.standardEmi,
       r.principalPaid,

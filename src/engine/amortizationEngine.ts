@@ -48,8 +48,24 @@ export function calculateSalaryFloatOffset(
 }
 
 /**
+ * Helper to calculate the 1-indexed month index of a target date relative to loan start date.
+ */
+export function getMonthIndexFromDate(startDateStr: string, targetDateStr: string): number {
+  if (!startDateStr || !targetDateStr) return 1;
+  const sParts = startDateStr.split('-');
+  const tParts = targetDateStr.split('-');
+  const sYear = parseInt(sParts[0] || '2024', 10);
+  const sMonth = parseInt(sParts[1] || '1', 10);
+  const tYear = parseInt(tParts[0] || '2024', 10);
+  const tMonth = parseInt(tParts[1] || '1', 10);
+  const diff = (tYear - sYear) * 12 + (tMonth - sMonth);
+  return diff + 1;
+}
+
+/**
  * Runs the complete 360-month Max Gain & Standard Amortization simulation
- * incorporating Multi-Tier rates, Overdraft daily salary float, and What-if prepayments.
+ * incorporating Multi-Tier rates, Overdraft daily salary float, Monthly Surplus,
+ * and One-Time Lump-Sum Deposits / Withdrawals with precise daily interest offsets.
  */
 export function runSimulation(inputs: SimulationInputs): {
   rows: MonthlyAmortizationRow[];
@@ -65,6 +81,8 @@ export function runSimulation(inputs: SimulationInputs): {
     fallbackRatePercent,
     fallbackYoYAdjustment,
     baselineMonthlySurplus = 0,
+    monthlySurplusStartDate,
+    oneTimeTransactions = [],
     customSurplusLedger = {},
     salaryCycle = {
       enabled: false,
@@ -94,6 +112,31 @@ export function runSimulation(inputs: SimulationInputs): {
 
   const rows: MonthlyAmortizationRow[] = [];
   const rateChangeEvents: { month: number; fromRate: number; toRate: number }[] = [];
+
+  // Group one-time transactions by loan month index (1..360)
+  const transactionsByMonth: Record<number, typeof oneTimeTransactions> = {};
+  let totalOneTimeDeposited = 0;
+  let totalOneTimeWithdrawn = 0;
+
+  for (const tx of oneTimeTransactions) {
+    if (!tx.amount || tx.amount <= 0 || !tx.date) continue;
+    const mIdx = Math.max(1, Math.min(360, getMonthIndexFromDate(startDate, tx.date)));
+    if (!transactionsByMonth[mIdx]) {
+      transactionsByMonth[mIdx] = [];
+    }
+    transactionsByMonth[mIdx].push(tx);
+
+    if (tx.type === 'DEPOSIT') {
+      totalOneTimeDeposited += tx.amount;
+    } else {
+      totalOneTimeWithdrawn += tx.amount;
+    }
+  }
+
+  const netOneTimeSurplus = totalOneTimeDeposited - totalOneTimeWithdrawn;
+  const monthlySurplusStartMonth = monthlySurplusStartDate
+    ? Math.max(1, getMonthIndexFromDate(startDate, monthlySurplusStartDate))
+    : 1;
 
   // Month 1 base salary float for summary
   const effectiveMonthlySalaryFloat = salaryCycle.enabled
@@ -157,10 +200,9 @@ export function runSimulation(inputs: SimulationInputs): {
     }
 
     // ==========================================
-    // 2. MAX GAIN AMORTIZATION (With Salary Float + Surplus)
+    // 2. MAX GAIN AMORTIZATION (With Monthly Surplus + Lump-Sum Txns + Salary Float)
     // ==========================================
     let mgOpening = curPrincipalMg;
-    let manualSurplus = 0;
     let salaryFloatOffset = 0;
     let totalParkedSurplus = 0;
     let effectivePrincipal = 0;
@@ -171,9 +213,45 @@ export function runSimulation(inputs: SimulationInputs): {
     let isClosureMonth = false;
     let isClosed = false;
 
+    // Evaluate One-Time Transactions for Month m
+    const monthTxs = transactionsByMonth[m] || [];
+    let mOneTimeDeposit = 0;
+    let mOneTimeWithdrawal = 0;
+    let mOneTimeTimingFloat = 0;
+
+    const currentYear = parseInt(isoDate.slice(0, 4), 10);
+    const currentMonth = parseInt(isoDate.slice(5, 7), 10);
+    const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate() || 30;
+
+    for (const tx of monthTxs) {
+      const txDay = parseInt(tx.date.slice(8, 10), 10) || 1;
+      const remainingDays = Math.max(1, Math.min(daysInCurrentMonth, daysInCurrentMonth - txDay + 1));
+      const timeWeight = remainingDays / daysInCurrentMonth;
+
+      if (tx.type === 'DEPOSIT') {
+        mOneTimeDeposit += tx.amount;
+        mOneTimeTimingFloat += tx.amount * timeWeight;
+      } else {
+        mOneTimeWithdrawal += tx.amount;
+        mOneTimeTimingFloat -= tx.amount * timeWeight;
+      }
+    }
+
+    const netOneTime = mOneTimeDeposit - mOneTimeWithdrawal;
+
+    // Monthly recurring surplus starts on or after monthlySurplusStartMonth
+    const isMonthlySurplusActive = m >= monthlySurplusStartMonth;
+    const baseMonthly = isMonthlySurplusActive ? baselineMonthlySurplus : 0;
+
+    // Applied net surplus for this month (prepayment / overdraft addition or withdrawal)
+    const naturalSurplusThisMonth = baseMonthly + netOneTime;
+    const appliedSurplus =
+      customSurplusLedger[m] !== undefined
+        ? customSurplusLedger[m]
+        : naturalSurplusThisMonth;
+
     if (curPrincipalMg <= 0.01) {
       mgOpening = 0;
-      manualSurplus = 0;
       salaryFloatOffset = 0;
       totalParkedSurplus = 0;
       effectivePrincipal = 0;
@@ -183,11 +261,6 @@ export function runSimulation(inputs: SimulationInputs): {
       mgClosing = 0;
       isClosed = true;
     } else {
-      manualSurplus =
-        customSurplusLedger[m] !== undefined
-          ? customSurplusLedger[m]
-          : baselineMonthlySurplus;
-
       if (salaryCycle.enabled) {
         salaryFloatOffset = calculateSalaryFloatOffset(
           salaryCycle.monthlySalary,
@@ -198,8 +271,15 @@ export function runSimulation(inputs: SimulationInputs): {
         );
       }
 
-      // Total effective surplus parked in OD account
-      totalParkedSurplus = Math.max(0, manualSurplus + salaryFloatOffset);
+      // Total effective surplus parked in OD account for interest offset
+      if (customSurplusLedger[m] !== undefined) {
+        totalParkedSurplus = Math.max(0, appliedSurplus + salaryFloatOffset);
+      } else {
+        // Precise daily time-weighted surplus in the transaction month
+        const timingAdjustedSurplus = baseMonthly + mOneTimeTimingFloat;
+        totalParkedSurplus = Math.max(0, timingAdjustedSurplus + salaryFloatOffset);
+      }
+
       effectivePrincipal = Math.max(0, mgOpening - totalParkedSurplus);
 
       // Accrued Interest = max(0, (Principal - Total Parked Surplus) * Rate/12)
@@ -208,12 +288,12 @@ export function runSimulation(inputs: SimulationInputs): {
       if (mode === 'FIX_EMI') {
         const targetEmi = initialBenchmarkEmi;
         const scheduledPrincipal = Math.max(0, targetEmi - mgAccruedInterest);
-        const netPrincipalReduction = scheduledPrincipal + manualSurplus;
+        const netPrincipalReduction = scheduledPrincipal + appliedSurplus;
 
         if (mgOpening <= netPrincipalReduction) {
           mgPrincipalPaid = mgOpening;
           mgClosing = 0;
-          mgActiveEmi = Math.max(0, mgOpening + mgAccruedInterest - Math.max(0, manualSurplus));
+          mgActiveEmi = Math.max(0, mgOpening + mgAccruedInterest - Math.max(0, appliedSurplus));
           isClosureMonth = true;
           isClosed = true;
           if (!closureFound) {
@@ -223,7 +303,8 @@ export function runSimulation(inputs: SimulationInputs): {
         } else {
           mgActiveEmi = targetEmi;
           mgPrincipalPaid = scheduledPrincipal;
-          mgClosing = Math.max(0, mgOpening - scheduledPrincipal - manualSurplus);
+          // Apply surplus: positive reduces principal, negative (withdrawal) draws down funds up to original loan limit
+          mgClosing = Math.min(principal, Math.max(0, mgOpening - scheduledPrincipal - appliedSurplus));
           if (mgClosing <= 0.01) {
             mgClosing = 0;
             isClosureMonth = true;
@@ -239,11 +320,11 @@ export function runSimulation(inputs: SimulationInputs): {
         const remainingMonths = Math.max(1, totalTenureMonths - m + 1);
         const scheduledStdEmi = calculateEmi(mgOpening, annualRate, remainingMonths);
         const scheduledPrincipalPart = Math.max(0, scheduledStdEmi - (mgOpening * monthlyRate));
-        const netPrincipalReduction = scheduledPrincipalPart + manualSurplus;
+        const netPrincipalReduction = scheduledPrincipalPart + appliedSurplus;
 
         if (m >= totalTenureMonths || mgOpening <= netPrincipalReduction) {
           mgPrincipalPaid = mgOpening;
-          mgActiveEmi = Math.max(0, mgOpening + mgAccruedInterest - Math.max(0, manualSurplus));
+          mgActiveEmi = Math.max(0, mgOpening + mgAccruedInterest - Math.max(0, appliedSurplus));
           mgClosing = 0;
           isClosureMonth = true;
           isClosed = true;
@@ -253,8 +334,8 @@ export function runSimulation(inputs: SimulationInputs): {
           }
         } else {
           mgPrincipalPaid = scheduledPrincipalPart;
-          mgActiveEmi = mgPrincipalPaid + mgAccruedInterest;
-          mgClosing = Math.max(0, mgOpening - scheduledPrincipalPart - manualSurplus);
+          mgActiveEmi = Math.max(0, mgPrincipalPaid + mgAccruedInterest);
+          mgClosing = Math.min(principal, Math.max(0, mgOpening - scheduledPrincipalPart - appliedSurplus));
           if (mgClosing <= 0.01) {
             mgClosing = 0;
             isClosureMonth = true;
@@ -268,9 +349,11 @@ export function runSimulation(inputs: SimulationInputs): {
       }
 
       cumInterestMg += mgAccruedInterest;
-      cumTotalMg += mgActiveEmi + Math.max(0, manualSurplus);
+      cumTotalMg += mgActiveEmi + Math.max(0, appliedSurplus);
       curPrincipalMg = mgClosing;
     }
+
+    const monthlyInterestSaved = stdAccruedInterest - mgAccruedInterest;
 
     rows.push({
       month: m,
@@ -282,13 +365,18 @@ export function runSimulation(inputs: SimulationInputs): {
       openingPrincipal: Math.round(mgOpening * 100) / 100,
       parkedSurplus: Math.round(totalParkedSurplus * 100) / 100,
       salaryFloatOffset: Math.round(salaryFloatOffset * 100) / 100,
+      oneTimeDeposit: Math.round(mOneTimeDeposit * 100) / 100,
+      oneTimeWithdrawal: Math.round(mOneTimeWithdrawal * 100) / 100,
+      netOneTimeSurplus: Math.round(netOneTime * 100) / 100,
+      monthlySurplus: Math.round(baseMonthly * 100) / 100,
       effectivePrincipal: Math.round(effectivePrincipal * 100) / 100,
       accruedInterest: Math.round(mgAccruedInterest * 100) / 100,
       standardAccruedInterest: Math.round(stdAccruedInterest * 100) / 100,
+      monthlyInterestSaved: Math.round(monthlyInterestSaved * 100) / 100,
       activeEmi: Math.round(mgActiveEmi * 100) / 100,
       standardEmi: Math.round(stdEmi * 100) / 100,
       principalPaid: Math.round(mgPrincipalPaid * 100) / 100,
-      prepaymentOrSurplus: Math.round(manualSurplus * 100) / 100,
+      prepaymentOrSurplus: Math.round(appliedSurplus * 100) / 100,
       closingPrincipal: Math.round(mgClosing * 100) / 100,
       standardClosingPrincipal: Math.round(stdClosing * 100) / 100,
       cumulativeInterestPaid: Math.round(cumInterestMg * 100) / 100,
@@ -297,6 +385,7 @@ export function runSimulation(inputs: SimulationInputs): {
       cumulativeStandardTotalPaid: Math.round(cumTotalStd * 100) / 100,
       isClosureMonth,
       isClosed,
+      transactions: monthTxs.length > 0 ? monthTxs : undefined,
     });
   }
 
@@ -331,6 +420,30 @@ export function runSimulation(inputs: SimulationInputs): {
       description: `Parking ${formatCurrency(salaryCycle.monthlySalary, currencyCode)} on the 1st for ${salaryCycle.parkingDays} days before withdrawing ${salaryCycle.withdrawalPercent}% maintains an effective average float of ${formatCurrency(effectiveMonthlySalaryFloat, currencyCode)} every month. This automatically saves ~${formatCurrency(monthlyInterestSavedFromFloat, currencyCode)} in interest each month!`,
       badgeText: `Smart Float Active`,
       badgeColor: 'emerald',
+    });
+  }
+
+  // Insight: One-Time Deposits and Withdrawals
+  for (const tx of oneTimeTransactions) {
+    if (!tx.amount || tx.amount <= 0 || !tx.date) continue;
+    const txMonth = Math.max(1, Math.min(360, getMonthIndexFromDate(startDate, tx.date)));
+    if (txMonth > closureMonth) continue;
+    const isDeposit = tx.type === 'DEPOSIT';
+    const txRow = rows[txMonth - 1];
+
+    milestones.push({
+      id: `one-time-${tx.id}`,
+      type: 'SURPLUS_IMPACT',
+      month: txMonth,
+      dateStr: tx.date,
+      title: isDeposit
+        ? `One-Time Deposit: +${formatCurrency(tx.amount, currencyCode)}${tx.label ? ` (${tx.label})` : ''}`
+        : `One-Time Withdrawal: -${formatCurrency(tx.amount, currencyCode)}${tx.label ? ` (${tx.label})` : ''}`,
+      description: isDeposit
+        ? `Lump-sum deposit of ${formatCurrency(tx.amount, currencyCode)} parked on ${tx.date} (Month ${txMonth}). Slashes active principal to ${formatCurrency(txRow?.closingPrincipal || 0, currencyCode)} and accelerates interest-free debt freedom.`
+        : `Lump-sum withdrawal of ${formatCurrency(tx.amount, currencyCode)} taken on ${tx.date} (Month ${txMonth}) from overdraft facility. Active loan balance shifts to ${formatCurrency(txRow?.closingPrincipal || 0, currencyCode)}.`,
+      badgeText: isDeposit ? `+${formatCurrency(tx.amount, currencyCode, true)} Deposit` : `-${formatCurrency(tx.amount, currencyCode, true)} Withdrawal`,
+      badgeColor: isDeposit ? 'emerald' : 'rose',
     });
   }
 
@@ -425,6 +538,9 @@ export function runSimulation(inputs: SimulationInputs): {
     interestReductionPercent,
     effectiveMonthlySalaryFloat: Math.round(effectiveMonthlySalaryFloat),
     monthlyInterestSavedFromFloat: Math.round(monthlyInterestSavedFromFloat),
+    totalOneTimeDeposited: Math.round(totalOneTimeDeposited),
+    totalOneTimeWithdrawn: Math.round(totalOneTimeWithdrawn),
+    netOneTimeSurplus: Math.round(netOneTimeSurplus),
     milestones,
   };
 
