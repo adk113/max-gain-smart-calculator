@@ -19,8 +19,6 @@
   },
   "dependencies": {
     "@capacitor/core": "^8.5.3",
-    "@capacitor/filesystem": "^8.1.5",
-    "@capacitor/share": "^8.0.3",
     "@tailwindcss/vite": "^4.3.3",
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^1.57.0",

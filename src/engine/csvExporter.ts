@@ -1,7 +1,4 @@
 import type { MonthlyAmortizationRow, SimulationInputs, SimulationSummary } from '../types/loan';
-import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 
 /**
  * Generate CSV string from simulation data
@@ -92,10 +89,11 @@ export function generateSimulationCsv(
 }
 
 /**
- * Universal CSV Exporter supporting Mobile (iOS Safari, Android Chrome, Capacitor) & Desktop.
- * 1. If in Capacitor Native App: uses native Filesystem & Share sheets.
- * 2. If in Mobile Safari/Chrome: uses Web Share API (navigator.share) with File object (allows 'Save to Files', AirDrop, Drive, etc.).
- * 3. Fallback: Blob URL download with cleanup.
+ * Universal CSV Exporter supporting Mobile (iOS Safari, Android Chrome, WebView) & Desktop.
+ * 1. Mobile Web Share API (navigator.share with File): Supported in modern mobile browsers
+ *    (allows native iOS "Save to Files", AirDrop, Android "Save to Drive", WhatsApp, etc.).
+ * 2. Blob URL download (URL.createObjectURL): Standard desktop & Android Chrome file downloads.
+ * 3. Fallback: Data URI download.
  */
 export async function exportSimulationToCsv(
   rows: MonthlyAmortizationRow[],
@@ -106,36 +104,13 @@ export async function exportSimulationToCsv(
   const timestamp = new Date().toISOString().slice(0, 10);
   const filename = `maxgain_simulation_${inputs.currencyCode}_${timestamp}.csv`;
 
-  // 1. Native Capacitor Environment (Android APK / iOS App)
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const savedFile = await Filesystem.writeFile({
-        path: filename,
-        data: csvContent,
-        directory: Directory.Cache,
-        encoding: Encoding.UTF8,
-      });
-
-      await Share.share({
-        title: 'MaxGain Home Loan Simulation CSV',
-        text: `MaxGain Simulation Report (${inputs.currencyCode})`,
-        url: savedFile.uri,
-        dialogTitle: 'Save or Share Simulation CSV',
-      });
-
-      return { success: true, method: 'capacitor-native', filename };
-    } catch (err) {
-      console.warn('Capacitor native share failed, falling back to Web Share / Blob download', err);
-    }
-  }
-
-  // 2. Mobile Web Share API (iOS Safari 15+, Android Chrome)
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 
   const isMobile =
     typeof navigator !== 'undefined' &&
     /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+  // 1. Mobile Web Share API with File (Native mobile sharing)
   if (isMobile && typeof navigator.canShare === 'function' && typeof File !== 'undefined') {
     try {
       const file = new File([blob], filename, { type: 'text/csv' });
@@ -148,7 +123,7 @@ export async function exportSimulationToCsv(
         return { success: true, method: 'web-share', filename };
       }
     } catch (err: unknown) {
-      // AbortError is thrown when user cancels the share sheet
+      // AbortError is thrown when user dismisses the share sheet
       if (err instanceof Error && err.name === 'AbortError') {
         return { success: true, method: 'share-dismissed', filename };
       }
@@ -156,7 +131,7 @@ export async function exportSimulationToCsv(
     }
   }
 
-  // 3. Direct Blob URL download (Desktop & standard web browsers)
+  // 2. Direct Blob URL download (Desktop & standard web browsers)
   try {
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -173,7 +148,21 @@ export async function exportSimulationToCsv(
 
     return { success: true, method: 'blob-download', filename };
   } catch (err) {
-    console.error('Blob download failed', err);
+    console.warn('Blob download failed, trying data URI fallback', err);
+  }
+
+  // 3. Fallback Data URI
+  try {
+    const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return { success: true, method: 'data-uri', filename };
+  } catch (err) {
+    console.error('All CSV export methods failed', err);
     return { success: false, method: 'failed', filename };
   }
 }
