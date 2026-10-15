@@ -20,6 +20,13 @@ An advanced, responsive, mobile-first financial simulation platform modeling ove
 | **📱 Mobile QR Share Hub** | Scannable QR Codes | [Open Share Hub (`/share`)](https://max-gain-smart-calculator.onrender.com/share) |
 | **⚡ Expo Dashboard** | EAS Project Builds | [View on Expo.dev](https://expo.dev/accounts/adk113/projects/max-gain-smart-calculator) |
 
+### 📷 Instant Scannable QR Codes
+
+| 🌐 iOS Safari & Desktop Web App | 🤖 Android Standalone APK (Direct Download) |
+| :---: | :---: |
+| <img src="assets/qr_render_web.png" width="200" alt="iOS Web App QR" /> | <img src="assets/qr_android_apk.png" width="200" alt="Android APK QR" /> |
+| [Launch Live Web App](https://max-gain-smart-calculator.onrender.com) | [Download v1.0.0 APK](https://github.com/adk113/max-gain-smart-calculator/releases/download/v1.0.0/app-debug.apk) |
+
 ---
 
 ## 🚀 Key Features
