@@ -15,7 +15,7 @@ An advanced, responsive, mobile-first financial simulation platform modeling ove
 | Platform | Channel | Link |
 | :--- | :--- | :--- |
 | **🌐 iOS / Safari / Desktop** | Instant Web App (PWA) | [Launch Live Web App](https://max-gain-smart-calculator.onrender.com) |
-| **🤖 Android Native (Expo EAS)** | EAS Cloud Build APK | [Download Expo APK](https://expo.dev/artifacts/eas/r6488KMd_Qapm6Pv9k3jVEfCj6TqUa0agO_q1QKNvY4.apk) |
+| **🤖 Android Native (Expo EAS)** | EAS Cloud Build APK | [Download Expo APK](https://expo.dev/artifacts/eas/VOB87QgmXKe3uo_c3WebaE4Ouc5luEM4etiGHQ5Yk1k.apk) |
 | **🤖 Android Native (GitHub)** | Standalone APK (v1.0.0) | [Download APK (4.16 MB)](https://github.com/adk113/max-gain-smart-calculator/releases/download/v1.0.0/app-debug.apk) |
 | **📱 Mobile QR Share Hub** | Scannable QR Codes | [Open Share Hub (`/share`)](https://max-gain-smart-calculator.onrender.com/share) |
 | **⚡ Expo Dashboard** | EAS Project Builds | [View on Expo.dev](https://expo.dev/accounts/adk113/projects/max-gain-smart-calculator) |
