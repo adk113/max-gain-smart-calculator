@@ -1,0 +1,16 @@
+{
+  "name": "Max Gain Smart Loan Simulator",
+  "short_name": "MaxGain",
+  "description": "Home Loan Advantage Overdraft & Multi-Tier Lock-In Amortization Simulator",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
