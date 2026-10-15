@@ -10,6 +10,17 @@ An advanced, responsive, mobile-first financial simulation platform modeling ove
 
 ---
 
+## 📲 Live Deployments & Mobile Downloads
+
+| Platform | Channel | Link |
+| :--- | :--- | :--- |
+| **🌐 iOS / Safari / Desktop** | Instant Web App (PWA) | [Launch Live Web App](https://max-gain-smart-calculator.onrender.com) |
+| **🤖 Android Native** | Standalone APK (v1.0.0) | [Download APK (4.16 MB)](https://github.com/adk113/max-gain-smart-calculator/releases/download/v1.0.0/app-debug.apk) |
+| **📱 Mobile QR Share Hub** | Scannable QR Codes | [Open Share Hub (`/share`)](https://max-gain-smart-calculator.onrender.com/share) |
+| **📦 GitHub Releases** | Source & Builds | [View GitHub Release v1.0.0](https://github.com/adk113/max-gain-smart-calculator/releases/tag/v1.0.0) |
+
+---
+
 ## 🚀 Key Features
 
 ### 1. Advanced Overdraft Financial Engine
