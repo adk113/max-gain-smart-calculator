@@ -134,7 +134,7 @@ cd android && ./gradlew assembleDebug
 ## 📊 Sample Excel Scenario Benchmark
 
 To verify exact calculations against the sample workbook (`Loan Tennure calulation.xlsx`):
-1. Click **"📊 Load Sample Excel (₹52L)"** in the top banner.
+1. Click **"📊 Load Sample/last data"** in the top banner.
 2. Parameters loaded:
    - **Loan Principal**: ₹52,00,000 (52 Lakhs)
    - **Tenure**: 20 Years (240 Months)

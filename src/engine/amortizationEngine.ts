@@ -104,8 +104,6 @@ export function runSimulation(inputs: SimulationInputs): {
 
   let cumInterestMg = 0;
   let cumInterestStd = 0;
-  let cumTotalMg = 0;
-  let cumTotalStd = 0;
 
   let closureMonth = totalTenureMonths;
   let closureFound = false;
@@ -192,7 +190,6 @@ export function runSimulation(inputs: SimulationInputs): {
       }
 
       cumInterestStd += stdAccruedInterest;
-      cumTotalStd += stdEmi;
       curPrincipalStd = stdClosing;
     } else {
       stdOpening = 0;
@@ -349,11 +346,15 @@ export function runSimulation(inputs: SimulationInputs): {
       }
 
       cumInterestMg += mgAccruedInterest;
-      cumTotalMg += mgActiveEmi + Math.max(0, appliedSurplus);
       curPrincipalMg = mgClosing;
     }
 
     const monthlyInterestSaved = stdAccruedInterest - mgAccruedInterest;
+
+    // Total outflow paid to the bank up to month m is cumulative principal repaid + cumulative interest paid.
+    // Withdrawals against surplus are user's own funds and never counted as loan payments to the bank.
+    const cumTotalMg = (principal - mgClosing) + cumInterestMg;
+    const cumTotalStd = (principal - stdClosing) + cumInterestStd;
 
     rows.push({
       month: m,
@@ -525,8 +526,8 @@ export function runSimulation(inputs: SimulationInputs): {
     totalInterestPaid: Math.round(cumInterestMg),
     standardTotalInterestPaid: Math.round(cumInterestStd),
     lifetimeInterestSaved,
-    totalAmountPaid: Math.round(cumTotalMg),
-    standardTotalAmountPaid: Math.round(cumTotalStd),
+    totalAmountPaid: Math.round(principal + cumInterestMg),
+    standardTotalAmountPaid: Math.round(principal + cumInterestStd),
     actualClosureMonth: closureMonth,
     actualClosureDate,
     originalTenureMonths: totalTenureMonths,

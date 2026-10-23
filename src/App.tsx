@@ -56,6 +56,7 @@ export function App() {
   });
 
   const [activeMobileTab, setActiveMobileTab] = useState<ActiveTab>('inputs');
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
 
   // Theme state: dark | light (persisted in localStorage)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -96,26 +97,82 @@ export function App() {
   const chartRef = useRef<HTMLDivElement>(null);
   const ledgerRef = useRef<HTMLDivElement>(null);
 
-  // Restore state from URL share hash if present
+  // Default sample scenario matching the 52L Excel model
+  const DEFAULT_EXCEL_SCENARIO: SimulationInputs = useMemo(
+    () => ({
+      principal: 5200000,
+      tenureYears: 20,
+      startDate: '2024-08-01',
+      mode: 'FIX_EMI',
+      currencyCode: 'INR',
+      lockInPhases: [
+        { id: 'phase-1', name: 'Excel 20-Year Term', durationYears: 20, ratePercent: 9.5 },
+      ],
+      fallbackRatePercent: 9.5,
+      fallbackYoYAdjustment: 0,
+      baselineMonthlySurplus: 0,
+      monthlySurplusStartDate: '',
+      oneTimeTransactions: [],
+      customSurplusLedger: {
+        1: 25000,
+        2: 25000,
+        3: 25000,
+        4: 25000,
+        5: 25000,
+        6: 25000,
+        7: 25000,
+        8: 25000,
+        9: 25000,
+        10: 25000,
+        11: 25000,
+        12: 25000,
+      },
+      salaryCycle: {
+        enabled: false,
+        monthlySalary: 150000,
+        parkingDays: 10,
+        withdrawalPercent: 60,
+        accumulateRetainedSavings: false,
+      },
+    }),
+    []
+  );
+
+  const applyInputs = (data: Partial<SimulationInputs>) => {
+    if (data.principal !== undefined) setPrincipal(data.principal);
+    if (data.tenureYears !== undefined) setTenureYears(data.tenureYears);
+    if (data.startDate !== undefined) setStartDate(data.startDate);
+    if (data.mode !== undefined) setMode(data.mode);
+    if (data.currencyCode !== undefined) setCurrencyCode(data.currencyCode);
+    if (data.lockInPhases !== undefined) setLockInPhases(data.lockInPhases);
+    if (data.fallbackRatePercent !== undefined) setFallbackRate(data.fallbackRatePercent);
+    if (data.fallbackYoYAdjustment !== undefined) setFallbackYoY(data.fallbackYoYAdjustment);
+    if (data.baselineMonthlySurplus !== undefined) setBaselineSurplus(data.baselineMonthlySurplus);
+    if (data.monthlySurplusStartDate !== undefined) setMonthlySurplusStartDate(data.monthlySurplusStartDate);
+    if (data.oneTimeTransactions !== undefined) setOneTimeTransactions(data.oneTimeTransactions);
+    if (data.customSurplusLedger !== undefined) setCustomSurplusLedger(data.customSurplusLedger);
+    if (data.salaryCycle !== undefined) setSalaryCycle(data.salaryCycle);
+  };
+
+  // Restore state from URL share hash if present, or from last saved data feed
   useEffect(() => {
     if (window.location.hash.startsWith('#share=')) {
       const encoded = window.location.hash.replace('#share=', '');
       const restored = deserializeSimulationState(encoded);
       if (restored) {
-        if (restored.principal !== undefined) setPrincipal(restored.principal);
-        if (restored.tenureYears !== undefined) setTenureYears(restored.tenureYears);
-        if (restored.startDate !== undefined) setStartDate(restored.startDate);
-        if (restored.mode !== undefined) setMode(restored.mode);
-        if (restored.currencyCode !== undefined) setCurrencyCode(restored.currencyCode);
-        if (restored.lockInPhases !== undefined) setLockInPhases(restored.lockInPhases);
-        if (restored.fallbackRatePercent !== undefined) setFallbackRate(restored.fallbackRatePercent);
-        if (restored.fallbackYoYAdjustment !== undefined) setFallbackYoY(restored.fallbackYoYAdjustment);
-        if (restored.baselineMonthlySurplus !== undefined) setBaselineSurplus(restored.baselineMonthlySurplus);
-        if (restored.monthlySurplusStartDate !== undefined) setMonthlySurplusStartDate(restored.monthlySurplusStartDate);
-        if (restored.oneTimeTransactions !== undefined) setOneTimeTransactions(restored.oneTimeTransactions);
-        if (restored.customSurplusLedger !== undefined) setCustomSurplusLedger(restored.customSurplusLedger);
-        if (restored.salaryCycle !== undefined) setSalaryCycle(restored.salaryCycle);
+        applyInputs(restored);
+        return;
       }
+    }
+
+    try {
+      const savedFeed = localStorage.getItem('maxgain_last_data_feed');
+      if (savedFeed) {
+        const parsed = JSON.parse(savedFeed);
+        applyInputs(parsed);
+      }
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -188,34 +245,44 @@ export function App() {
     setSalaryCycle((prev) => ({ ...prev, enabled: false }));
   };
 
-  // Load sample Excel scenario (52 Lakhs @ 9.5%, Months 1-12 have 25,000)
-  const handleLoadExcelScenario = () => {
-    setPrincipal(5200000);
-    setTenureYears(20);
-    setStartDate('2024-08-01');
-    setMode('FIX_EMI');
-    setCurrencyCode('INR');
-    setLockInPhases([
-      { id: 'phase-1', name: 'Excel 20-Year Term', durationYears: 20, ratePercent: 9.5 },
-    ]);
-    setFallbackRate(9.5);
-    setFallbackYoY(0);
-    setBaselineSurplus(0);
-    setMonthlySurplusStartDate('');
-    setOneTimeTransactions([]);
-    setSalaryCycle({
-      enabled: false,
-      monthlySalary: 150000,
-      parkingDays: 10,
-      withdrawalPercent: 60,
-      accumulateRetainedSavings: false,
-    });
+  // Keep the latest data feed in storage (overriding the entry as calculations run)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem('maxgain_last_data_feed', JSON.stringify(currentInputs));
+      } catch {
+        // ignore
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [currentInputs]);
 
-    const sampleCustom: Record<number, number> = {};
-    for (let m = 1; m <= 12; m++) {
-      sampleCustom[m] = 25000;
+  const triggerToast = (msg: string) => {
+    setToastNotice(msg);
+    setTimeout(() => setToastNotice(null), 3000);
+  };
+
+  // Load sample or last data feed (overriding entry with current calculation inputs)
+  const handleLoadSampleOrLastData = () => {
+    try {
+      const savedFeed = localStorage.getItem('maxgain_last_data_feed');
+      if (savedFeed) {
+        const parsed = JSON.parse(savedFeed);
+        applyInputs(parsed);
+        triggerToast('Loaded last calculation data successfully!');
+        return;
+      }
+    } catch {
+      // fallback
     }
-    setCustomSurplusLedger(sampleCustom);
+    applyInputs(DEFAULT_EXCEL_SCENARIO);
+    triggerToast('Loaded Sample Excel scenario (₹52L)!');
+  };
+
+  // Reset to original 52L Excel sample template
+  const handleResetToExcelSample = () => {
+    applyInputs(DEFAULT_EXCEL_SCENARIO);
+    triggerToast('Reset to original ₹52L Excel sample template!');
   };
 
   const handleMobileTabSelect = (tab: ActiveTab) => {
@@ -290,13 +357,24 @@ export function App() {
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={handleLoadExcelScenario}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
-              >
-                📊 Load Sample Excel (₹52L)
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleLoadSampleOrLastData}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
+                  title="Load your last entered calculation data feed or sample scenario"
+                >
+                  <span>📊 Load Sample/last data</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetToExcelSample}
+                  className="px-2.5 py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-[11px] font-medium text-slate-400 hover:text-slate-200 border border-slate-700/60 transition-all active:scale-95 cursor-pointer"
+                  title="Reset to original ₹52L Excel sample template"
+                >
+                  Reset to Sample
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -393,7 +471,7 @@ export function App() {
             onAddTransaction={handleAddTransaction}
             onRemoveTransaction={handleRemoveTransaction}
             onResetAll={handleResetAllSurplus}
-            onLoadExcelScenario={handleLoadExcelScenario}
+            onLoadExcelScenario={handleLoadSampleOrLastData}
           />
 
           {/* Smart Salary Float & Parking Cycle Simulator */}
@@ -471,6 +549,14 @@ export function App() {
         inputs={currentInputs}
         summary={summary}
       />
+
+      {/* Interactive Toast Notification */}
+      {toastNotice && (
+        <div className="fixed bottom-20 md:bottom-6 right-6 z-50 bg-slate-900 border border-emerald-500/40 text-emerald-300 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 animate-bounce">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>{toastNotice}</span>
+        </div>
+      )}
     </div>
   );
 }

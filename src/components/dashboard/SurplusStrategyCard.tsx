@@ -197,10 +197,10 @@ export const SurplusStrategyCard: React.FC<SurplusStrategyCardProps> = ({
             type="button"
             onClick={onLoadExcelScenario}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all active:scale-95"
-            title="Load ₹52 Lakhs @ 9.5% with ₹25k prepayments matching the Excel workbook"
+            title="Load your last entered calculation data feed or sample scenario"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Load Excel Sample</span>
+            <span>Load Sample/last data</span>
           </button>
         </div>
       </div>
