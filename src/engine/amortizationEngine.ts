@@ -48,17 +48,51 @@ export function calculateSalaryFloatOffset(
 }
 
 /**
+ * Robust date parser supporting YYYY-MM-DD and DD-MM-YYYY formats.
+ */
+export function parseYearMonthDay(dateStr: string): { year: number; month: number; day: number } {
+  if (!dateStr) return { year: 2024, month: 1, day: 1 };
+  const parts = dateStr.replace(/\//g, '-').split('-');
+  let year = 2024;
+  let month = 1;
+  let day = 1;
+
+  if (parts.length >= 3) {
+    if (parts[0].length === 4) {
+      // YYYY-MM-DD
+      year = parseInt(parts[0], 10) || 2024;
+      month = parseInt(parts[1], 10) || 1;
+      day = parseInt(parts[2], 10) || 1;
+    } else if (parts[2].length === 4) {
+      // DD-MM-YYYY
+      day = parseInt(parts[0], 10) || 1;
+      month = parseInt(parts[1], 10) || 1;
+      year = parseInt(parts[2], 10) || 2024;
+    } else {
+      year = parseInt(parts[0], 10) || 2024;
+      month = parseInt(parts[1], 10) || 1;
+      day = parseInt(parts[2], 10) || 1;
+    }
+  } else if (parts.length === 2) {
+    if (parts[0].length === 4) {
+      year = parseInt(parts[0], 10) || 2024;
+      month = parseInt(parts[1], 10) || 1;
+    } else {
+      month = parseInt(parts[0], 10) || 1;
+      year = parseInt(parts[1], 10) || 2024;
+    }
+  }
+  return { year, month, day };
+}
+
+/**
  * Helper to calculate the 1-indexed month index of a target date relative to loan start date.
  */
 export function getMonthIndexFromDate(startDateStr: string, targetDateStr: string): number {
   if (!startDateStr || !targetDateStr) return 1;
-  const sParts = startDateStr.split('-');
-  const tParts = targetDateStr.split('-');
-  const sYear = parseInt(sParts[0] || '2024', 10);
-  const sMonth = parseInt(sParts[1] || '1', 10);
-  const tYear = parseInt(tParts[0] || '2024', 10);
-  const tMonth = parseInt(tParts[1] || '1', 10);
-  const diff = (tYear - sYear) * 12 + (tMonth - sMonth);
+  const s = parseYearMonthDay(startDateStr);
+  const t = parseYearMonthDay(targetDateStr);
+  const diff = (t.year - s.year) * 12 + (t.month - s.month);
   return diff + 1;
 }
 
@@ -221,7 +255,7 @@ export function runSimulation(inputs: SimulationInputs): {
     const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate() || 30;
 
     for (const tx of monthTxs) {
-      const txDay = parseInt(tx.date.slice(8, 10), 10) || 1;
+      const { day: txDay } = parseYearMonthDay(tx.date);
       const remainingDays = Math.max(1, Math.min(daysInCurrentMonth, daysInCurrentMonth - txDay + 1));
       const timeWeight = remainingDays / daysInCurrentMonth;
 
@@ -240,12 +274,14 @@ export function runSimulation(inputs: SimulationInputs): {
     const isMonthlySurplusActive = m >= monthlySurplusStartMonth;
     const baseMonthly = isMonthlySurplusActive ? baselineMonthlySurplus : 0;
 
-    // Applied net surplus for this month (prepayment / overdraft addition or withdrawal)
-    const naturalSurplusThisMonth = baseMonthly + netOneTime;
-    const appliedSurplus =
+    // Monthly recurring prepayment (custom ledger entry or baseline monthly surplus)
+    const monthRecurringSurplus =
       customSurplusLedger[m] !== undefined
         ? customSurplusLedger[m]
-        : naturalSurplusThisMonth;
+        : baseMonthly;
+
+    // Applied net surplus for this month (recurring monthly surplus + one-time net deposit/withdrawal)
+    const appliedSurplus = monthRecurringSurplus + netOneTime;
 
     if (curPrincipalMg <= 0.01) {
       mgOpening = 0;
@@ -269,13 +305,9 @@ export function runSimulation(inputs: SimulationInputs): {
       }
 
       // Total effective surplus parked in OD account for interest offset
-      if (customSurplusLedger[m] !== undefined) {
-        totalParkedSurplus = Math.max(0, appliedSurplus + salaryFloatOffset);
-      } else {
-        // Precise daily time-weighted surplus in the transaction month
-        const timingAdjustedSurplus = baseMonthly + mOneTimeTimingFloat;
-        totalParkedSurplus = Math.max(0, timingAdjustedSurplus + salaryFloatOffset);
-      }
+      // Precise daily time-weighted surplus in the transaction month (recurring + one-time float + salary float)
+      const timingAdjustedSurplus = monthRecurringSurplus + mOneTimeTimingFloat;
+      totalParkedSurplus = Math.max(0, timingAdjustedSurplus + salaryFloatOffset);
 
       effectivePrincipal = Math.max(0, mgOpening - totalParkedSurplus);
 
@@ -369,7 +401,7 @@ export function runSimulation(inputs: SimulationInputs): {
       oneTimeDeposit: Math.round(mOneTimeDeposit * 100) / 100,
       oneTimeWithdrawal: Math.round(mOneTimeWithdrawal * 100) / 100,
       netOneTimeSurplus: Math.round(netOneTime * 100) / 100,
-      monthlySurplus: Math.round(baseMonthly * 100) / 100,
+      monthlySurplus: Math.round(monthRecurringSurplus * 100) / 100,
       effectivePrincipal: Math.round(effectivePrincipal * 100) / 100,
       accruedInterest: Math.round(mgAccruedInterest * 100) / 100,
       standardAccruedInterest: Math.round(stdAccruedInterest * 100) / 100,

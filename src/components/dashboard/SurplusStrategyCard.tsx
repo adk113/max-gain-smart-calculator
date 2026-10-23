@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { OneTimeTransaction, OneTimeTransactionType } from '../../types/loan';
 import { formatCurrency } from '../../utils/formatters';
 import {
@@ -67,6 +67,18 @@ export const SurplusStrategyCard: React.FC<SurplusStrategyCardProps> = ({
   });
   const [txLabel, setTxLabel] = useState<string>('');
   const [lastAddedNotice, setLastAddedNotice] = useState<string | null>(null);
+
+  // Sync default transaction date when loan start date shifts
+  useEffect(() => {
+    if (loanStartDate) {
+      const parts = loanStartDate.split('-');
+      const y = parseInt(parts[0] || '2024', 10);
+      const m = parseInt(parts[1] || '1', 10);
+      const targetDate = new Date(y, m - 1 + 6, 1);
+      const defaultDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-01`;
+      setTxDate((prev) => (!prev || prev < loanStartDate ? defaultDate : prev));
+    }
+  }, [loanStartDate]);
 
   const [showDateFilterForMonthly, setShowDateFilterForMonthly] = useState<boolean>(
     Boolean(monthlySurplusStartDate && monthlySurplusStartDate !== loanStartDate)
