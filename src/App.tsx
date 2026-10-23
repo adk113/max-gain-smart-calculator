@@ -18,42 +18,39 @@ import { copyShareableLink, deserializeSimulationState } from './engine/urlSeria
 import { getCurrencyConfig } from './utils/formatters';
 import { ScreenScrollSlideBar } from './components/layout/ScreenScrollSlideBar';
 import { ExportCsvModal } from './components/controls/ExportCsvModal';
+import { getSavedScenario, saveScenario, DEFAULT_EXCEL_SCENARIO } from './engine/scenarioStorage';
 
 export function App() {
   // Safe-scroll slider lock and mobile export modal state
   const [slidersLocked, setSlidersLocked] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
-  // Default values adhering strictly to requirements:
-  // - Default currency: INR
-  // - Prepayments default to Zero (0)
-  // - Multi-tier lock-in ledger
-  const [currencyCode, setCurrencyCode] = useState<string>('INR');
-  const [principal, setPrincipal] = useState<number>(5200000); // 52 Lakhs
-  const [tenureYears, setTenureYears] = useState<number>(20); // 20 Years
-  const [startDate, setStartDate] = useState<string>('2024-08-01');
-  const [mode, setMode] = useState<LoanMode>('FIX_EMI');
+  // Synchronously initialize state from persistent storage or default 52L Excel scenario
+  const [initialData] = useState<SimulationInputs>(() => getSavedScenario());
 
-  const [lockInPhases, setLockInPhases] = useState<LockInPhase[]>([
-    { id: 'phase-1', name: 'Phase 1: Initial Fixed', durationYears: 3, ratePercent: 9.5 },
-    { id: 'phase-2', name: 'Phase 2: Step-down', durationYears: 2, ratePercent: 8.75 },
-  ]);
-
-  const [fallbackRate, setFallbackRate] = useState<number>(8.5);
-  const [fallbackYoY, setFallbackYoY] = useState<number>(0.0);
-  const [baselineSurplus, setBaselineSurplus] = useState<number>(0);
-  const [monthlySurplusStartDate, setMonthlySurplusStartDate] = useState<string>('');
-  const [oneTimeTransactions, setOneTimeTransactions] = useState<OneTimeTransaction[]>([]);
-  const [customSurplusLedger, setCustomSurplusLedger] = useState<Record<number, number>>({});
+  const [currencyCode, setCurrencyCode] = useState<string>(initialData.currencyCode);
+  const [principal, setPrincipal] = useState<number>(initialData.principal);
+  const [tenureYears, setTenureYears] = useState<number>(initialData.tenureYears);
+  const [startDate, setStartDate] = useState<string>(initialData.startDate);
+  const [mode, setMode] = useState<LoanMode>(initialData.mode);
+  const [lockInPhases, setLockInPhases] = useState<LockInPhase[]>(initialData.lockInPhases);
+  const [fallbackRate, setFallbackRate] = useState<number>(initialData.fallbackRatePercent);
+  const [fallbackYoY, setFallbackYoY] = useState<number>(initialData.fallbackYoYAdjustment);
+  const [baselineSurplus, setBaselineSurplus] = useState<number>(initialData.baselineMonthlySurplus);
+  const [monthlySurplusStartDate, setMonthlySurplusStartDate] = useState<string>(
+    initialData.monthlySurplusStartDate || ''
+  );
+  const [oneTimeTransactions, setOneTimeTransactions] = useState<OneTimeTransaction[]>(
+    initialData.oneTimeTransactions || []
+  );
+  const [customSurplusLedger, setCustomSurplusLedger] = useState<Record<number, number>>(
+    initialData.customSurplusLedger || {}
+  );
 
   // Salary parking cycle configuration (e.g., salary on 1st, parked 10 days, 60% withdrawn for bills)
-  const [salaryCycle, setSalaryCycle] = useState<SalaryCycleConfig>({
-    enabled: false,
-    monthlySalary: 150000,
-    parkingDays: 10,
-    withdrawalPercent: 60,
-    accumulateRetainedSavings: false,
-  });
+  const [salaryCycle, setSalaryCycle] = useState<SalaryCycleConfig>(
+    initialData.salaryCycle || DEFAULT_EXCEL_SCENARIO.salaryCycle
+  );
 
   const [activeMobileTab, setActiveMobileTab] = useState<ActiveTab>('inputs');
   const [toastNotice, setToastNotice] = useState<string | null>(null);
@@ -97,47 +94,6 @@ export function App() {
   const chartRef = useRef<HTMLDivElement>(null);
   const ledgerRef = useRef<HTMLDivElement>(null);
 
-  // Default sample scenario matching the 52L Excel model
-  const DEFAULT_EXCEL_SCENARIO: SimulationInputs = useMemo(
-    () => ({
-      principal: 5200000,
-      tenureYears: 20,
-      startDate: '2024-08-01',
-      mode: 'FIX_EMI',
-      currencyCode: 'INR',
-      lockInPhases: [
-        { id: 'phase-1', name: 'Excel 20-Year Term', durationYears: 20, ratePercent: 9.5 },
-      ],
-      fallbackRatePercent: 9.5,
-      fallbackYoYAdjustment: 0,
-      baselineMonthlySurplus: 0,
-      monthlySurplusStartDate: '',
-      oneTimeTransactions: [],
-      customSurplusLedger: {
-        1: 25000,
-        2: 25000,
-        3: 25000,
-        4: 25000,
-        5: 25000,
-        6: 25000,
-        7: 25000,
-        8: 25000,
-        9: 25000,
-        10: 25000,
-        11: 25000,
-        12: 25000,
-      },
-      salaryCycle: {
-        enabled: false,
-        monthlySalary: 150000,
-        parkingDays: 10,
-        withdrawalPercent: 60,
-        accumulateRetainedSavings: false,
-      },
-    }),
-    []
-  );
-
   const applyInputs = (data: Partial<SimulationInputs>) => {
     if (data.principal !== undefined) setPrincipal(data.principal);
     if (data.tenureYears !== undefined) setTenureYears(data.tenureYears);
@@ -154,26 +110,17 @@ export function App() {
     if (data.salaryCycle !== undefined) setSalaryCycle(data.salaryCycle);
   };
 
-  // Restore state from URL share hash if present, or from last saved data feed
+  // Listen to hash changes in case a new share link is opened while already on the page
   useEffect(() => {
-    if (window.location.hash.startsWith('#share=')) {
-      const encoded = window.location.hash.replace('#share=', '');
-      const restored = deserializeSimulationState(encoded);
-      if (restored) {
-        applyInputs(restored);
-        return;
+    const handleHashChange = () => {
+      if (window.location.hash.startsWith('#share=')) {
+        const encoded = window.location.hash.replace('#share=', '');
+        const restored = deserializeSimulationState(encoded);
+        if (restored) applyInputs(restored);
       }
-    }
-
-    try {
-      const savedFeed = localStorage.getItem('maxgain_last_data_feed');
-      if (savedFeed) {
-        const parsed = JSON.parse(savedFeed);
-        applyInputs(parsed);
-      }
-    } catch {
-      // ignore
-    }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
   const currentInputs: SimulationInputs = useMemo(
@@ -245,16 +192,24 @@ export function App() {
     setSalaryCycle((prev) => ({ ...prev, enabled: false }));
   };
 
-  // Keep the latest data feed in storage (overriding the entry as calculations run)
+  const isInitialMount = useRef(true);
+
+  // Keep the latest data feed in storage (immediately persists and overwrites as user types/adjusts)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        localStorage.setItem('maxgain_last_data_feed', JSON.stringify(currentInputs));
-      } catch {
-        // ignore
-      }
-    }, 400);
-    return () => clearTimeout(timer);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    saveScenario(currentInputs);
+  }, [currentInputs]);
+
+  // Ensure latest inputs are persisted even on instant browser tab close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveScenario(currentInputs);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [currentInputs]);
 
   const triggerToast = (msg: string) => {
@@ -262,27 +217,11 @@ export function App() {
     setTimeout(() => setToastNotice(null), 3000);
   };
 
-  // Load sample or last data feed (overriding entry with current calculation inputs)
+  // Load sample or last data feed (overwriting entry with current calculation inputs)
   const handleLoadSampleOrLastData = () => {
-    try {
-      const savedFeed = localStorage.getItem('maxgain_last_data_feed');
-      if (savedFeed) {
-        const parsed = JSON.parse(savedFeed);
-        applyInputs(parsed);
-        triggerToast('Loaded last calculation data successfully!');
-        return;
-      }
-    } catch {
-      // fallback
-    }
-    applyInputs(DEFAULT_EXCEL_SCENARIO);
-    triggerToast('Loaded Sample Excel scenario (₹52L)!');
-  };
-
-  // Reset to original 52L Excel sample template
-  const handleResetToExcelSample = () => {
-    applyInputs(DEFAULT_EXCEL_SCENARIO);
-    triggerToast('Reset to original ₹52L Excel sample template!');
+    const saved = getSavedScenario();
+    applyInputs(saved);
+    triggerToast('Loaded saved calculation data successfully!');
   };
 
   const handleMobileTabSelect = (tab: ActiveTab) => {
@@ -365,14 +304,6 @@ export function App() {
                   title="Load your last entered calculation data feed or sample scenario"
                 >
                   <span>📊 Load Sample/last data</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetToExcelSample}
-                  className="px-2.5 py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-[11px] font-medium text-slate-400 hover:text-slate-200 border border-slate-700/60 transition-all active:scale-95 cursor-pointer"
-                  title="Reset to original ₹52L Excel sample template"
-                >
-                  Reset to Sample
                 </button>
               </div>
             </div>
