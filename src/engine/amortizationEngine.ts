@@ -3,6 +3,8 @@ import type {
   SimulationInputs,
   SimulationSummary,
   FinancialMilestoneInsight,
+  SalaryExpenseRow,
+  ExpenseAllocationMode,
 } from '../types/loan';
 import { addMonthsToDate, formatDurationSaved, formatCurrency, formatPercentage } from '../utils/formatters';
 import { buildRateSchedule } from './rateLedger';
@@ -20,31 +22,264 @@ export function calculateEmi(principal: number, annualRatePercent: number, tenur
   return isFinite(emi) ? emi : 0;
 }
 
+export interface SalaryIntervalSegment {
+  startDay: number;
+  endDay: number;
+  days: number;
+  intervalFraction: number;
+  balance: number;
+  retainedPercent: number;
+  departingExpenses: { label: string; amount: number; day: number }[];
+}
+
+export interface DailySalaryBalancePoint {
+  day: number;
+  dayLabel: string;
+  balance: number;
+  retainedPercent: number;
+  withdrawnOnDay: number;
+  cumulativeWithdrawn: number;
+  expenseDetails: {
+    id: string;
+    label: string;
+    amount: number;
+    percentOfSalary: number;
+    mode: ExpenseAllocationMode;
+    rawValue: number;
+  }[];
+}
+
+export interface MonthlySalaryCycleSimulation {
+  salary: number;
+  daysInMonth: number;
+  totalExpensesAmount: number;
+  totalExpensesPercent: number;
+  retainedEndOfMonth: number;
+  retainedEndOfMonthPercent: number;
+  baseMonthlyFloat: number;
+  intervals: SalaryIntervalSegment[];
+  dailyCurve: DailySalaryBalancePoint[];
+}
+
+/**
+ * Resolves a single SalaryExpenseRow into its absolute currency amount and percentage of net salary.
+ */
+export function resolveExpenseRowAmount(
+  row: SalaryExpenseRow,
+  salary: number
+): { amount: number; percentOfSalary: number; clampedDay: number } {
+  const safeSalary = Math.max(0, salary || 0);
+  const rawVal = Math.max(0, Number(row.value) || 0);
+  const clampedDay = Math.min(31, Math.max(1, Math.round(Number(row.dayOfMonth) || 1)));
+
+  if (row.allocationMode === 'PERCENTAGE') {
+    const pct = Math.min(100, rawVal);
+    const amount = (safeSalary * pct) / 100;
+    return { amount, percentOfSalary: pct, clampedDay };
+  } else {
+    const amount = rawVal;
+    const percentOfSalary = safeSalary > 0 ? (amount / safeSalary) * 100 : 0;
+    return { amount, percentOfSalary, clampedDay };
+  }
+}
+
+/**
+ * Simulates the multi-drop daily cash balance curve and interval fractions across a monthly cycle.
+ * If no custom expense rows are initialized, all expense deductions cleanly default to Zero (0).
+ */
+export function simulateMonthlySalaryCycle(
+  salary: number,
+  expenses?: SalaryExpenseRow[],
+  daysInMonth: number = 30,
+  legacyParkingDays: number = 0,
+  legacyWithdrawalPercent: number = 0
+): MonthlySalaryCycleSimulation {
+  const safeDaysInMonth = Math.min(31, Math.max(28, Math.round(daysInMonth || 30)));
+  const safeSalary = Math.max(0, Number(salary) || 0);
+
+  // Build effective expense list:
+  // If expenses array is provided (even if empty []), use it directly; if empty, all expense values default to 0.
+  // Only fall back to legacy single-drop if expenses is undefined AND legacy parameters > 0.
+  let effectiveExpenses: SalaryExpenseRow[] = [];
+  if (Array.isArray(expenses)) {
+    effectiveExpenses = expenses;
+  } else if (legacyParkingDays > 0 && legacyWithdrawalPercent > 0) {
+    effectiveExpenses = [
+      {
+        id: 'legacy-withdrawal',
+        label: 'Scheduled Expense Withdrawal',
+        dayOfMonth: Math.min(31, Math.max(1, legacyParkingDays + 1)),
+        allocationMode: 'PERCENTAGE',
+        value: Math.min(100, Math.max(0, legacyWithdrawalPercent)),
+      },
+    ];
+  }
+
+  // Group resolved expenses by calendar day within [1..safeDaysInMonth]
+  const expensesByDay: Record<
+    number,
+    {
+      id: string;
+      label: string;
+      amount: number;
+      percentOfSalary: number;
+      mode: ExpenseAllocationMode;
+      rawValue: number;
+    }[]
+  > = {};
+
+  let totalRawExpensesAmount = 0;
+
+  for (const row of effectiveExpenses) {
+    if (!row) continue;
+    const { amount, percentOfSalary, clampedDay } = resolveExpenseRowAmount(row, safeSalary);
+    if (amount <= 0 && (Number(row.value) || 0) <= 0) {
+      // Zero-value expense row contributes 0 deduction
+      continue;
+    }
+    const effectiveDay = Math.min(safeDaysInMonth, Math.max(1, clampedDay));
+    if (!expensesByDay[effectiveDay]) {
+      expensesByDay[effectiveDay] = [];
+    }
+    expensesByDay[effectiveDay].push({
+      id: row.id,
+      label: row.label || 'Expense Outflow',
+      amount,
+      percentOfSalary,
+      mode: row.allocationMode,
+      rawValue: Math.max(0, Number(row.value) || 0),
+    });
+    totalRawExpensesAmount += amount;
+  }
+
+  // Simulate Day 1 to safeDaysInMonth
+  const dailyCurve: DailySalaryBalancePoint[] = [];
+  let cumulativeWithdrawn = 0;
+
+  for (let d = 1; d <= safeDaysInMonth; d++) {
+    const dayExpenses = expensesByDay[d] || [];
+    const withdrawnOnDay = dayExpenses.reduce((sum, item) => sum + item.amount, 0);
+    cumulativeWithdrawn += withdrawnOnDay;
+
+    const balance = Math.max(0, safeSalary - cumulativeWithdrawn);
+    const retainedPercent = safeSalary > 0 ? (balance / safeSalary) * 100 : 0;
+
+    dailyCurve.push({
+      day: d,
+      dayLabel: `Day ${d}`,
+      balance,
+      retainedPercent,
+      withdrawnOnDay,
+      cumulativeWithdrawn,
+      expenseDetails: dayExpenses,
+    });
+  }
+
+  // Construct precise sequential interval segments based on drop dates
+  const intervals: SalaryIntervalSegment[] = [];
+  if (dailyCurve.length > 0) {
+    let segStart = 1;
+    let segBalance = dailyCurve[0].balance;
+    let segRetainedPct = dailyCurve[0].retainedPercent;
+    let segExpenses = dailyCurve[0].expenseDetails.map((e) => ({
+      label: e.label,
+      amount: e.amount,
+      day: 1,
+    }));
+
+    for (let d = 2; d <= safeDaysInMonth; d++) {
+      const pt = dailyCurve[d - 1];
+      const hasDropToday = pt.expenseDetails.length > 0;
+      if (hasDropToday) {
+        const segDays = d - segStart;
+        intervals.push({
+          startDay: segStart,
+          endDay: d - 1,
+          days: segDays,
+          intervalFraction: segDays / safeDaysInMonth,
+          balance: segBalance,
+          retainedPercent: segRetainedPct,
+          departingExpenses: segExpenses,
+        });
+        segStart = d;
+        segBalance = pt.balance;
+        segRetainedPct = pt.retainedPercent;
+        segExpenses = pt.expenseDetails.map((e) => ({
+          label: e.label,
+          amount: e.amount,
+          day: d,
+        }));
+      }
+    }
+
+    // Push final interval segment through end of month
+    const finalDays = safeDaysInMonth - segStart + 1;
+    intervals.push({
+      startDay: segStart,
+      endDay: safeDaysInMonth,
+      days: finalDays,
+      intervalFraction: finalDays / safeDaysInMonth,
+      balance: segBalance,
+      retainedPercent: segRetainedPct,
+      departingExpenses: segExpenses,
+    });
+  }
+
+  // Sum interval balances weighted by their exact interval fractions
+  const baseMonthlyFloat =
+    safeSalary > 0
+      ? intervals.reduce((acc, seg) => acc + seg.balance * seg.intervalFraction, 0)
+      : 0;
+
+  const retainedEndOfMonth =
+    dailyCurve.length > 0 ? dailyCurve[dailyCurve.length - 1].balance : 0;
+  const retainedEndOfMonthPercent =
+    safeSalary > 0 ? (retainedEndOfMonth / safeSalary) * 100 : 0;
+  const totalExpensesPercent =
+    safeSalary > 0 ? (totalRawExpensesAmount / safeSalary) * 100 : 0;
+
+  return {
+    salary: safeSalary,
+    daysInMonth: safeDaysInMonth,
+    totalExpensesAmount: totalRawExpensesAmount,
+    totalExpensesPercent,
+    retainedEndOfMonth,
+    retainedEndOfMonthPercent,
+    baseMonthlyFloat,
+    intervals,
+    dailyCurve,
+  };
+}
+
 /**
  * Calculates the time-weighted daily average balance for the salary parking cycle
+ * supporting both the Multi-Date Dynamic Expense Ledger and legacy single-drop inputs.
  */
 export function calculateSalaryFloatOffset(
   salary: number,
   parkingDays: number,
   withdrawalPercent: number,
   monthIndex: number,
-  accumulate: boolean
+  accumulate: boolean,
+  expenses?: SalaryExpenseRow[],
+  daysInMonth: number = 30
 ): number {
   if (salary <= 0) return 0;
-  const safeDays = Math.min(29, Math.max(1, parkingDays));
-  const safeWithdrawalPct = Math.min(100, Math.max(0, withdrawalPercent));
-  const retainedFraction = (100 - safeWithdrawalPct) / 100;
-  const retainedPerMonth = salary * retainedFraction;
 
-  // Base monthly float: Days 1..D at 100% salary, Days (D+1)..30 at retained salary
-  const baseMonthlyFloat = (salary * safeDays + retainedPerMonth * (30 - safeDays)) / 30;
+  const sim = simulateMonthlySalaryCycle(
+    salary,
+    expenses,
+    daysInMonth,
+    parkingDays,
+    withdrawalPercent
+  );
 
   if (accumulate && monthIndex > 1) {
-    const priorAccumulated = (monthIndex - 1) * retainedPerMonth;
-    return baseMonthlyFloat + priorAccumulated;
+    const priorAccumulated = (monthIndex - 1) * sim.retainedEndOfMonth;
+    return sim.baseMonthlyFloat + priorAccumulated;
   }
 
-  return baseMonthlyFloat;
+  return sim.baseMonthlyFloat;
 }
 
 /**
@@ -121,9 +356,10 @@ export function runSimulation(inputs: SimulationInputs): {
     salaryCycle = {
       enabled: false,
       monthlySalary: 150000,
-      parkingDays: 10,
-      withdrawalPercent: 60,
+      parkingDays: 0,
+      withdrawalPercent: 0,
       accumulateRetainedSavings: false,
+      expenses: [],
     },
   } = inputs;
 
@@ -170,14 +406,16 @@ export function runSimulation(inputs: SimulationInputs): {
     ? Math.max(1, getMonthIndexFromDate(startDate, monthlySurplusStartDate))
     : 1;
 
-  // Month 1 base salary float for summary
+  // Month 1 base salary float for summary (using typical 30-day banking cycle)
   const effectiveMonthlySalaryFloat = salaryCycle.enabled
     ? calculateSalaryFloatOffset(
         salaryCycle.monthlySalary,
         salaryCycle.parkingDays,
         salaryCycle.withdrawalPercent,
         1,
-        salaryCycle.accumulateRetainedSavings
+        salaryCycle.accumulateRetainedSavings,
+        salaryCycle.expenses,
+        30
       )
     : 0;
 
@@ -300,7 +538,9 @@ export function runSimulation(inputs: SimulationInputs): {
           salaryCycle.parkingDays,
           salaryCycle.withdrawalPercent,
           m,
-          salaryCycle.accumulateRetainedSavings
+          salaryCycle.accumulateRetainedSavings,
+          salaryCycle.expenses,
+          daysInCurrentMonth
         );
       }
 
@@ -444,14 +684,27 @@ export function runSimulation(inputs: SimulationInputs): {
 
   // Insight: Salary Float Cycle (if enabled)
   if (salaryCycle.enabled && salaryCycle.monthlySalary > 0) {
+    const activeCycleSim = simulateMonthlySalaryCycle(
+      salaryCycle.monthlySalary,
+      salaryCycle.expenses,
+      30,
+      salaryCycle.parkingDays,
+      salaryCycle.withdrawalPercent
+    );
+    const activeDropCount = (salaryCycle.expenses || []).filter((e) => (Number(e.value) || 0) > 0).length;
+    const insightDescription =
+      activeDropCount > 0
+        ? `Parking ${formatCurrency(salaryCycle.monthlySalary, currencyCode)} on Day 1 across ${activeDropCount} staggered expense outflow(s) (${activeCycleSim.totalExpensesPercent.toFixed(1)}% total monthly deduction) maintains an effective time-weighted average float of ${formatCurrency(effectiveMonthlySalaryFloat, currencyCode)} every month. This automatically saves ~${formatCurrency(monthlyInterestSavedFromFloat, currencyCode)} in interest each month!`
+        : `Parking ${formatCurrency(salaryCycle.monthlySalary, currencyCode)} on Day 1 with 0 custom expense outflows maintains an effective average float of ${formatCurrency(effectiveMonthlySalaryFloat, currencyCode)} every month. This automatically saves ~${formatCurrency(monthlyInterestSavedFromFloat, currencyCode)} in interest each month!`;
+
     milestones.push({
       id: 'salary-float-active',
       type: 'SALARY_CYCLE',
       month: 1,
       dateStr: addMonthsToDate(startDate, 0).dateStr,
       title: `Smart Salary Float Active: ${formatCurrency(effectiveMonthlySalaryFloat, currencyCode)}/mo Average Offset`,
-      description: `Parking ${formatCurrency(salaryCycle.monthlySalary, currencyCode)} on the 1st for ${salaryCycle.parkingDays} days before withdrawing ${salaryCycle.withdrawalPercent}% maintains an effective average float of ${formatCurrency(effectiveMonthlySalaryFloat, currencyCode)} every month. This automatically saves ~${formatCurrency(monthlyInterestSavedFromFloat, currencyCode)} in interest each month!`,
-      badgeText: `Smart Float Active`,
+      description: insightDescription,
+      badgeText: activeDropCount > 0 ? `${activeDropCount}-Drop Float Active` : `Smart Float Active`,
       badgeColor: 'emerald',
     });
   }

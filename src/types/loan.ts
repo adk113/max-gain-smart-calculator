@@ -26,12 +26,23 @@ export interface LockInPhase {
   ratePercent: number;
 }
 
+export type ExpenseAllocationMode = 'ABSOLUTE' | 'PERCENTAGE';
+
+export interface SalaryExpenseRow {
+  id: string;
+  label: string; // e.g., Credit Card Bill, SIP Deduction, EMI Payment, School Fees, Miscellaneous
+  dayOfMonth: number; // Bounded from Day 1 to Day 31
+  allocationMode: ExpenseAllocationMode; // 'ABSOLUTE' | 'PERCENTAGE'
+  value: number; // Absolute figure amount or Percentage (0-100) of total net salary flow
+}
+
 export interface SalaryCycleConfig {
   enabled: boolean;
   monthlySalary: number;
-  parkingDays: number; // e.g. 10 days parked at 100%
-  withdrawalPercent: number; // e.g. 60% withdrawn on day (parkingDays + 1)
+  parkingDays: number; // e.g. 10 days parked at 100% (legacy/fallback)
+  withdrawalPercent: number; // e.g. 60% withdrawn on day (parkingDays + 1) (legacy/fallback)
   accumulateRetainedSavings: boolean; // false = static monthly float, true = adds retained savings month-over-month
+  expenses?: SalaryExpenseRow[]; // Granular Multi-Date Dynamic Expense Ledger rows
 }
 
 export type OneTimeTransactionType = 'DEPOSIT' | 'WITHDRAWAL';

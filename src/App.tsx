@@ -189,7 +189,13 @@ export function App() {
     setMonthlySurplusStartDate('');
     setOneTimeTransactions([]);
     setCustomSurplusLedger({});
-    setSalaryCycle((prev) => ({ ...prev, enabled: false }));
+    setSalaryCycle((prev) => ({
+      ...prev,
+      enabled: false,
+      parkingDays: 0,
+      withdrawalPercent: 0,
+      expenses: [],
+    }));
   };
 
   const isInitialMount = useRef(true);
@@ -437,7 +443,12 @@ export function App() {
 
         {/* SECTION 4: Amortization Trajectory Chart */}
         <div ref={chartRef} className="pt-2">
-          <AmortizationChart rows={rows} summary={summary} currencyCode={currencyCode} />
+          <AmortizationChart
+            rows={rows}
+            summary={summary}
+            currencyCode={currencyCode}
+            salaryCycle={salaryCycle}
+          />
         </div>
 
         {/* SECTION 5: 360-Month Interactive What-If Ledger Table */}

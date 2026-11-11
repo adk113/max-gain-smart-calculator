@@ -38,9 +38,10 @@ export const DEFAULT_EXCEL_SCENARIO: SimulationInputs = {
   salaryCycle: {
     enabled: false,
     monthlySalary: 150000,
-    parkingDays: 10,
-    withdrawalPercent: 60,
+    parkingDays: 0,
+    withdrawalPercent: 0,
     accumulateRetainedSavings: false,
+    expenses: [],
   },
 };
 
@@ -56,7 +57,21 @@ export function getSavedScenario(): SimulationInputs {
     try {
       const encoded = window.location.hash.replace('#share=', '');
       const restored = deserializeSimulationState(encoded);
-      if (restored) return { ...DEFAULT_EXCEL_SCENARIO, ...restored };
+      if (restored) {
+        return {
+          ...DEFAULT_EXCEL_SCENARIO,
+          ...restored,
+          salaryCycle: restored.salaryCycle
+            ? {
+                ...DEFAULT_EXCEL_SCENARIO.salaryCycle,
+                ...restored.salaryCycle,
+                expenses: Array.isArray(restored.salaryCycle.expenses)
+                  ? restored.salaryCycle.expenses
+                  : DEFAULT_EXCEL_SCENARIO.salaryCycle.expenses,
+              }
+            : DEFAULT_EXCEL_SCENARIO.salaryCycle,
+        };
+      }
     } catch {
       // ignore
     }
@@ -83,7 +98,13 @@ export function getSavedScenario(): SimulationInputs {
               ? parsed.customSurplusLedger
               : DEFAULT_EXCEL_SCENARIO.customSurplusLedger,
           salaryCycle: parsed.salaryCycle
-            ? { ...DEFAULT_EXCEL_SCENARIO.salaryCycle, ...parsed.salaryCycle }
+            ? {
+                ...DEFAULT_EXCEL_SCENARIO.salaryCycle,
+                ...parsed.salaryCycle,
+                expenses: Array.isArray(parsed.salaryCycle.expenses)
+                  ? parsed.salaryCycle.expenses
+                  : DEFAULT_EXCEL_SCENARIO.salaryCycle.expenses,
+              }
             : DEFAULT_EXCEL_SCENARIO.salaryCycle,
         };
       }
